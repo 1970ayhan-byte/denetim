@@ -1,102 +1,844 @@
-import { MongoClient } from 'mongodb'
-import { v4 as uuidv4 } from 'uuid'
 import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
+import sharp from 'sharp'
+import { v4 as uuidv4 } from 'uuid'
 
-// MongoDB connection
-let client
-let db
-
-async function connectToMongo() {
-  if (!client) {
-    client = new MongoClient(process.env.MONGO_URL)
-    await client.connect()
-    db = client.db(process.env.DB_NAME)
-  }
-  return db
-}
-
-// Helper function to handle CORS
+// CORS Helper
 function handleCORS(response) {
-  response.headers.set('Access-Control-Allow-Origin', process.env.CORS_ORIGINS || '*')
+  response.headers.set('Access-Control-Allow-Origin', '*')
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  response.headers.set('Access-Control-Allow-Credentials', 'true')
   return response
 }
 
-// OPTIONS handler for CORS
 export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
 }
 
-// Route handler function
+// Main route handler
 async function handleRoute(request, { params }) {
   const { path = [] } = params
   const route = `/${path.join('/')}`
   const method = request.method
 
   try {
-    const db = await connectToMongo()
-
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
-    if (route === '/root' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
+    // ============ AUTH ENDPOINTS ============
+    
+    // Login
+    if (route === '/auth/login' && method === 'POST') {
+      const { phone, password } = await request.json()
+      
+      const user = await prisma.user.findUnique({ where: { phone } })
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 401 }))
+      }
+      
+      const valid = await comparePassword(password, user.password)
+      if (!valid) {
+        return handleCORS(NextResponse.json({ error: 'Şifre hatalı' }, { status: 401 }))
+      }
+      
+      const token = generateToken(user)
+      return handleCORS(NextResponse.json({ 
+        token, 
+        user: { id: user.id, phone: user.phone, name: user.name, role: user.role }
+      }))
     }
-    // Root endpoint - GET /api/root (since /api/ is not accessible with catch-all)
+    
+    // Register (Admin only - will create first admin manually)
+    if (route === '/auth/register' && method === 'POST') {
+      const { phone, password, name, role } = await request.json()
+      
+      const exists = await prisma.user.findUnique({ where: { phone } })
+      if (exists) {
+        return handleCORS(NextResponse.json({ error: 'Bu telefon numarası zaten kayıtlı' }, { status: 400 }))
+      }
+      
+      const hashedPassword = await hashPassword(password)
+      const user = await prisma.user.create({
+        data: { phone, password: hashedPassword, name, role: role || 'inspector' }
+      })
+      
+      return handleCORS(NextResponse.json({ 
+        message: 'Kullanıcı oluşturuldu',
+        user: { id: user.id, phone: user.phone, name: user.name, role: user.role }
+      }))
+    }
+    
+    // Password Reset Request (Mock SMS)
+    if (route === '/auth/reset-password' && method === 'POST') {
+      const { phone } = await request.json()
+      const user = await prisma.user.findUnique({ where: { phone } })
+      
+      if (!user) {
+        return handleCORS(NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 404 }))
+      }
+      
+      // Mock: Gerçekte SMS gönderilecek
+      console.log(`[MOCK SMS] Şifre sıfırlama kodu ${phone} numarasına gönderildi: 123456`)
+      
+      return handleCORS(NextResponse.json({ 
+        message: 'Şifre sıfırlama kodu telefon numaranıza gönderildi',
+        mock: { code: '123456', userId: user.id }
+      }))
+    }
+    
+    // ============ ADMIN - CATEGORIES ============
+    
+    if (route === '/admin/categories' && method === 'GET') {
+      const categories = await prisma.category.findMany({
+        orderBy: { order: 'asc' },
+        include: { questions: { orderBy: { order: 'asc' } } }
+      })
+      return handleCORS(NextResponse.json(categories))
+    }
+    
+    if (route === '/admin/categories' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { name, order } = await request.json()
+      const category = await prisma.category.create({
+        data: { name, order: order || 0 }
+      })
+      return handleCORS(NextResponse.json(category))
+    }
+    
+    if (route.startsWith('/admin/categories/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const { name, order } = await request.json()
+      const category = await prisma.category.update({
+        where: { id },
+        data: { name, order }
+      })
+      return handleCORS(NextResponse.json(category))
+    }
+    
+    if (route.startsWith('/admin/categories/') && method === 'DELETE') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      await prisma.category.delete({ where: { id } })
+      return handleCORS(NextResponse.json({ message: 'Kategori silindi' }))
+    }
+    
+    // ============ ADMIN - QUESTIONS ============
+    
+    if (route === '/admin/questions' && method === 'GET') {
+      const { categoryId } = Object.fromEntries(new URL(request.url).searchParams)
+      const where = categoryId ? { categoryId } : {}
+      
+      const questions = await prisma.question.findMany({
+        where,
+        orderBy: { order: 'asc' },
+        include: { category: true }
+      })
+      return handleCORS(NextResponse.json(questions))
+    }
+    
+    if (route === '/admin/questions' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const data = await request.json()
+      const question = await prisma.question.create({ data })
+      return handleCORS(NextResponse.json(question))
+    }
+    
+    if (route.startsWith('/admin/questions/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const data = await request.json()
+      const question = await prisma.question.update({
+        where: { id },
+        data
+      })
+      return handleCORS(NextResponse.json(question))
+    }
+    
+    if (route.startsWith('/admin/questions/') && method === 'DELETE') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      await prisma.question.delete({ where: { id } })
+      return handleCORS(NextResponse.json({ message: 'Soru silindi' }))
+    }
+    
+    // ============ ADMIN - STAFF (Personel) ============
+    
+    if (route === '/admin/staff' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const staff = await prisma.user.findMany({
+        where: { role: 'inspector' },
+        select: { id: true, phone: true, name: true, role: true, createdAt: true }
+      })
+      return handleCORS(NextResponse.json(staff))
+    }
+    
+    if (route === '/admin/staff' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { phone, password, name } = await request.json()
+      const hashedPassword = await hashPassword(password)
+      const user = await prisma.user.create({
+        data: { phone, password: hashedPassword, name, role: 'inspector' }
+      })
+      return handleCORS(NextResponse.json({ 
+        id: user.id, phone: user.phone, name: user.name, role: user.role 
+      }))
+    }
+    
+    if (route.startsWith('/admin/staff/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const { phone, password, name } = await request.json()
+      const data = { phone, name }
+      if (password) {
+        data.password = await hashPassword(password)
+      }
+      
+      const user = await prisma.user.update({
+        where: { id },
+        data
+      })
+      return handleCORS(NextResponse.json({ 
+        id: user.id, phone: user.phone, name: user.name, role: user.role 
+      }))
+    }
+    
+    if (route.startsWith('/admin/staff/') && method === 'DELETE') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      await prisma.user.delete({ where: { id } })
+      return handleCORS(NextResponse.json({ message: 'Personel silindi' }))
+    }
+    
+    // ============ ADMIN - PACKAGES ============
+    
+    if (route === '/admin/packages' && method === 'GET') {
+      const packages = await prisma.package.findMany({
+        orderBy: { createdAt: 'desc' }
+      })
+      return handleCORS(NextResponse.json(packages))
+    }
+    
+    if (route === '/admin/packages' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const data = await request.json()
+      if (typeof data.features === 'object') {
+        data.features = JSON.stringify(data.features)
+      }
+      
+      const pkg = await prisma.package.create({ data })
+      return handleCORS(NextResponse.json(pkg))
+    }
+    
+    if (route.startsWith('/admin/packages/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const data = await request.json()
+      if (typeof data.features === 'object') {
+        data.features = JSON.stringify(data.features)
+      }
+      
+      const pkg = await prisma.package.update({
+        where: { id },
+        data
+      })
+      return handleCORS(NextResponse.json(pkg))
+    }
+    
+    if (route.startsWith('/admin/packages/') && method === 'DELETE') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      await prisma.package.delete({ where: { id } })
+      return handleCORS(NextResponse.json({ message: 'Paket silindi' }))
+    }
+    
+    // ============ ADMIN - CITIES ============
+    
+    if (route === '/admin/cities' && method === 'GET') {
+      const cities = await prisma.city.findMany({
+        orderBy: { name: 'asc' }
+      })
+      return handleCORS(NextResponse.json(cities))
+    }
+    
+    if (route === '/admin/cities' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const data = await request.json()
+      const city = await prisma.city.create({ data })
+      return handleCORS(NextResponse.json(city))
+    }
+    
+    if (route.startsWith('/admin/cities/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const data = await request.json()
+      const city = await prisma.city.update({
+        where: { id },
+        data
+      })
+      return handleCORS(NextResponse.json(city))
+    }
+    
+    if (route.startsWith('/admin/cities/') && method === 'DELETE') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      await prisma.city.delete({ where: { id } })
+      return handleCORS(NextResponse.json({ message: 'İl silindi' }))
+    }
+    
+    // ============ ADMIN - MESSAGES ============
+    
+    if (route === '/admin/messages' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { status } = Object.fromEntries(new URL(request.url).searchParams)
+      const where = status ? { status } : {}
+      
+      const messages = await prisma.message.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 30
+      })
+      return handleCORS(NextResponse.json(messages))
+    }
+    
+    if (route.startsWith('/admin/messages/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const { status, note } = await request.json()
+      const message = await prisma.message.update({
+        where: { id },
+        data: { status, note }
+      })
+      return handleCORS(NextResponse.json(message))
+    }
+    
+    // ============ ADMIN - PAYMENTS ============
+    
+    if (route === '/admin/payments' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const payments = await prisma.payment.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { package: true, city: true }
+      })
+      return handleCORS(NextResponse.json(payments))
+    }
+    
+    // ============ ADMIN - INSPECTIONS ============
+    
+    if (route === '/admin/inspections' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const inspections = await prisma.inspection.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { 
+          city: true, 
+          package: true, 
+          inspector: { select: { name: true, phone: true } },
+          payment: true
+        }
+      })
+      return handleCORS(NextResponse.json(inspections))
+    }
+    
+    // Assign inspector to inspection
+    if (route.startsWith('/admin/inspections/') && route.endsWith('/assign') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[2]
+      const { inspectorId } = await request.json()
+      const inspection = await prisma.inspection.update({
+        where: { id },
+        data: { inspectorId }
+      })
+      return handleCORS(NextResponse.json(inspection))
+    }
+    
+    // ============ ADMIN - NEWS ============
+    
+    if (route === '/admin/news' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const news = await prisma.news.findMany({
+        orderBy: { createdAt: 'desc' }
+      })
+      return handleCORS(NextResponse.json(news))
+    }
+    
+    if (route === '/admin/news' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const data = await request.json()
+      // Create slug from title
+      data.slug = data.title.toLowerCase()
+        .replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ş/g, 's')
+        .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      
+      const news = await prisma.news.create({ data })
+      return handleCORS(NextResponse.json(news))
+    }
+    
+    if (route.startsWith('/admin/news/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const data = await request.json()
+      const news = await prisma.news.update({
+        where: { id },
+        data
+      })
+      return handleCORS(NextResponse.json(news))
+    }
+    
+    if (route.startsWith('/admin/news/') && method === 'DELETE') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      await prisma.news.delete({ where: { id } })
+      return handleCORS(NextResponse.json({ message: 'Haber silindi' }))
+    }
+    
+    // ============ PUBLIC - PACKAGES ============
+    
+    if (route === '/packages' && method === 'GET') {
+      const packages = await prisma.package.findMany({
+        where: { active: true },
+        orderBy: { price: 'asc' }
+      })
+      
+      // Parse features JSON
+      const packagesWithFeatures = packages.map(pkg => ({
+        ...pkg,
+        features: typeof pkg.features === 'string' ? JSON.parse(pkg.features || '[]') : pkg.features
+      }))
+      
+      return handleCORS(NextResponse.json(packagesWithFeatures))
+    }
+    
+    // ============ PUBLIC - CITIES ============
+    
+    if (route === '/cities' && method === 'GET') {
+      const cities = await prisma.city.findMany({
+        orderBy: { name: 'asc' }
+      })
+      return handleCORS(NextResponse.json(cities))
+    }
+    
+    // ============ PUBLIC - NEWS ============
+    
+    if (route === '/news' && method === 'GET') {
+      const news = await prisma.news.findMany({
+        where: { published: true },
+        orderBy: { createdAt: 'desc' },
+        take: 12
+      })
+      return handleCORS(NextResponse.json(news))
+    }
+    
+    if (route.startsWith('/news/') && method === 'GET') {
+      const slug = path[path.length - 1]
+      const news = await prisma.news.findUnique({
+        where: { slug }
+      })
+      if (!news) {
+        return handleCORS(NextResponse.json({ error: 'Haber bulunamadı' }, { status: 404 }))
+      }
+      return handleCORS(NextResponse.json(news))
+    }
+    
+    // ============ PUBLIC - CONTACT FORM ============
+    
+    if (route === '/contact' && method === 'POST') {
+      const data = await request.json()
+      const message = await prisma.message.create({ data })
+      
+      // Mock: SMS bildirimi
+      console.log('[MOCK SMS] Admin: Yeni form mesajı geldi')
+      
+      return handleCORS(NextResponse.json({ 
+        message: 'Mesajınız alındı, en kısa sürede dönüş yapacağız',
+        id: message.id
+      }))
+    }
+    
+    // ============ PAYMENT ============
+    
+    if (route === '/payment/initiate' && method === 'POST') {
+      const data = await request.json()
+      
+      // Create payment record
+      const payment = await prisma.payment.create({
+        data: {
+          amount: data.amount,
+          packageId: data.packageId,
+          schoolName: data.schoolName,
+          cityId: data.cityId,
+          district: data.district || '',
+          contactName: data.contactName,
+          contactPhone: data.contactPhone,
+          contactEmail: data.contactEmail || '',
+          taxOffice: data.taxOffice || '',
+          taxNumber: data.taxNumber || '',
+          address: data.address || '',
+          status: 'pending'
+        }
+      })
+      
+      // Mock: ParamPOS entegrasyonu
+      console.log('[MOCK PAYMENT] ParamPOS ödeme isteği:', payment.id)
+      
+      // Auto-complete for demo (gerçekte ParamPOS callback gelecek)
+      const completedPayment = await prisma.payment.update({
+        where: { id: payment.id },
+        data: { 
+          status: 'completed',
+          paidAt: new Date(),
+          transactionId: `MOCK-${uuidv4().substring(0, 8)}`
+        }
+      })
+      
+      // Create inspection
+      const inspection = await prisma.inspection.create({
+        data: {
+          schoolName: data.schoolName,
+          cityId: data.cityId,
+          district: data.district || '',
+          packageId: data.packageId,
+          paymentId: completedPayment.id,
+          schoolContact: data.contactName,
+          schoolPhone: data.contactPhone,
+          schoolEmail: data.contactEmail || '',
+          status: 'pending'
+        }
+      })
+      
+      // Mock: SMS bildirimi
+      console.log(`[MOCK SMS] ${data.contactPhone}: Ödemeniz alındı. Denetim kodu: ${inspection.id}`)
+      
+      return handleCORS(NextResponse.json({ 
+        success: true,
+        payment: completedPayment,
+        inspection,
+        message: 'Ödeme başarılı! (DEMO MODE)'
+      }))
+    }
+    
+    // ============ INSPECTOR - MY INSPECTIONS ============
+    
+    if (route === '/inspector/inspections' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const inspections = await prisma.inspection.findMany({
+        where: { inspectorId: authUser.id },
+        orderBy: { createdAt: 'desc' },
+        include: { city: true, package: true, payment: true }
+      })
+      return handleCORS(NextResponse.json(inspections))
+    }
+    
+    // ============ INSPECTOR - INSPECTION DETAIL ============
+    
+    if (route.startsWith('/inspector/inspection/') && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[path.length - 1]
+      const inspection = await prisma.inspection.findUnique({
+        where: { id },
+        include: { 
+          city: true, 
+          package: true,
+          answers: {
+            include: { question: { include: { category: true } } }
+          }
+        }
+      })
+      
+      if (!inspection || inspection.inspectorId !== authUser.id) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
+      
+      return handleCORS(NextResponse.json(inspection))
+    }
+    
+    // ============ INSPECTOR - START INSPECTION ============
+    
+    if (route === '/inspector/inspection/start' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { inspectionId } = await request.json()
+      const inspection = await prisma.inspection.update({
+        where: { id: inspectionId },
+        data: { status: 'in_progress' }
+      })
+      
+      // Get all questions for inspection
+      const categories = await prisma.category.findMany({
+        orderBy: { order: 'asc' },
+        include: { questions: { orderBy: { order: 'asc' } } }
+      })
+      
+      return handleCORS(NextResponse.json({ inspection, categories }))
+    }
+    
+    // ============ INSPECTOR - SAVE ANSWER ============
+    
+    if (route === '/inspector/inspection/answer' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { inspectionId, questionId, answer, note, photos } = await request.json()
+      
+      // Check if answer exists
+      const existing = await prisma.inspectionAnswer.findFirst({
+        where: { inspectionId, questionId }
+      })
+      
+      let answerRecord
+      if (existing) {
+        answerRecord = await prisma.inspectionAnswer.update({
+          where: { id: existing.id },
+          data: { 
+            answer, 
+            note: note || '',
+            photos: photos ? JSON.stringify(photos) : ''
+          }
+        })
+      } else {
+        answerRecord = await prisma.inspectionAnswer.create({
+          data: {
+            inspectionId,
+            questionId,
+            answer,
+            note: note || '',
+            photos: photos ? JSON.stringify(photos) : ''
+          }
+        })
+      }
+      
+      return handleCORS(NextResponse.json(answerRecord))
+    }
+    
+    // ============ INSPECTOR - UPLOAD PHOTO ============
+    
+    if (route === '/inspector/inspection/upload-photo' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const formData = await request.formData()
+      const file = formData.get('photo')
+      
+      if (!file) {
+        return handleCORS(NextResponse.json({ error: 'Dosya bulunamadı' }, { status: 400 }))
+      }
+      
+      // Convert to buffer and optimize
+      const bytes = await file.arrayBuffer()
+      const buffer = Buffer.from(bytes)
+      
+      const optimized = await sharp(buffer)
+        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer()
+      
+      // In production, upload to cloud storage (S3, Supabase Storage, etc.)
+      // For now, save as base64
+      const base64 = optimized.toString('base64')
+      const dataUrl = `data:image/jpeg;base64,${base64}`
+      
+      return handleCORS(NextResponse.json({ url: dataUrl }))
+    }
+    
+    // ============ INSPECTOR - COMPLETE INSPECTION ============
+    
+    if (route === '/inspector/inspection/complete' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { inspectionId } = await request.json()
+      const inspection = await prisma.inspection.update({
+        where: { id: inspectionId },
+        data: { 
+          status: 'completed',
+          completedAt: new Date()
+        }
+      })
+      
+      return handleCORS(NextResponse.json({ 
+        message: 'Denetim tamamlandı',
+        inspection
+      }))
+    }
+    
+    // ============ ADMIN - GENERATE PDF REPORT ============
+    
+    if (route.startsWith('/admin/inspection/') && route.endsWith('/pdf') && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[2]
+      const inspection = await prisma.inspection.findUnique({
+        where: { id },
+        include: {
+          city: true,
+          package: true,
+          answers: {
+            where: {
+              OR: [
+                { answer: 'uygun_degil' },
+                { answer: 'goreceli' }
+              ]
+            },
+            include: { question: { include: { category: true } } }
+          }
+        }
+      })
+      
+      if (!inspection) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
+      
+      // Generate PDF content (simplified - in production use puppeteer)
+      const pdfContent = {
+        inspection,
+        generatedAt: new Date().toLocaleDateString('tr-TR'),
+        company: 'SARIMEŞE DANIŞMANLIK'
+      }
+      
+      return handleCORS(NextResponse.json(pdfContent))
+    }
+    
+    // Root
     if (route === '/' && method === 'GET') {
-      return handleCORS(NextResponse.json({ message: "Hello World" }))
+      return handleCORS(NextResponse.json({ 
+        message: 'Okul Denetim API',
+        version: '1.0.0'
+      }))
     }
-
-    // Status endpoints - POST /api/status
-    if (route === '/status' && method === 'POST') {
-      const body = await request.json()
-      
-      if (!body.client_name) {
-        return handleCORS(NextResponse.json(
-          { error: "client_name is required" }, 
-          { status: 400 }
-        ))
-      }
-
-      const statusObj = {
-        id: uuidv4(),
-        client_name: body.client_name,
-        timestamp: new Date()
-      }
-
-      await db.collection('status_checks').insertOne(statusObj)
-      return handleCORS(NextResponse.json(statusObj))
-    }
-
-    // Status endpoints - GET /api/status
-    if (route === '/status' && method === 'GET') {
-      const statusChecks = await db.collection('status_checks')
-        .find({})
-        .limit(1000)
-        .toArray()
-
-      // Remove MongoDB's _id field from response
-      const cleanedStatusChecks = statusChecks.map(({ _id, ...rest }) => rest)
-      
-      return handleCORS(NextResponse.json(cleanedStatusChecks))
-    }
-
-    // Route not found
+    
+    // 404
     return handleCORS(NextResponse.json(
-      { error: `Route ${route} not found` }, 
+      { error: `Route ${route} not found` },
       { status: 404 }
     ))
-
+    
   } catch (error) {
     console.error('API Error:', error)
     return handleCORS(NextResponse.json(
-      { error: "Internal server error" }, 
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     ))
   }
 }
 
-// Export all HTTP methods
 export const GET = handleRoute
 export const POST = handleRoute
 export const PUT = handleRoute
