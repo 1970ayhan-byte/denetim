@@ -1188,37 +1188,323 @@ function CategoriesTab({ token }) {
 }
 
 // Questions Tab (Basitleştirilmiş)
+// Questions Tab - Tam CRUD
 function QuestionsTab({ token }) {
   const [questions, setQuestions] = useState([])
   const [categories, setCategories] = useState([])
+  const [showDialog, setShowDialog] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [formData, setFormData] = useState({
+    categoryId: '',
+    question: '',
+    regulationText: '',
+    imageUrl: '',
+    order: 0,
+    penaltyType: ''
+  })
+
+  const loadQuestions = async () => {
+    const response = await fetch('/api/admin/questions', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    setQuestions(await response.json())
+  }
 
   useEffect(() => {
     fetch('/api/admin/categories', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setCategories)
-    fetch('/api/admin/questions', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setQuestions)
+    loadQuestions()
   }, [])
+
+  const filteredQuestions = selectedCategory === 'all' 
+    ? questions 
+    : questions.filter(q => q.categoryId === selectedCategory)
+
+  const handleSave = async () => {
+    if (!formData.categoryId || !formData.question) {
+      sonnerToast.error('Kategori ve soru zorunludur')
+      return
+    }
+
+    const url = editItem ? `/api/admin/questions/${editItem.id}` : '/api/admin/questions'
+    const method = editItem ? 'PUT' : 'POST'
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(formData)
+    })
+    sonnerToast.success(editItem ? 'Güncellendi' : 'Eklendi')
+    setShowDialog(false)
+    setEditItem(null)
+    setFormData({
+      categoryId: '',
+      question: '',
+      regulationText: '',
+      imageUrl: '',
+      order: 0,
+      penaltyType: ''
+    })
+    loadQuestions()
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Silmek istediğinizden emin misiniz?')) return
+    await fetch(`/api/admin/questions/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    sonnerToast.success('Silindi')
+    loadQuestions()
+  }
+
+  const handleEdit = (item) => {
+    setEditItem(item)
+    setFormData({
+      categoryId: item.categoryId,
+      question: item.question,
+      regulationText: item.regulationText || '',
+      imageUrl: item.imageUrl || '',
+      order: item.order || 0,
+      penaltyType: item.penaltyType || ''
+    })
+    setShowDialog(true)
+  }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Sorular ({questions.length})</h2>
-      <p className="text-muted-foreground">Soru yönetimi için gelişmiş arayüz yakında eklenecek</p>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Denetim Soruları ({filteredQuestions.length})</h2>
+        <div className="flex gap-4">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Kategori Seç" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tüm Kategoriler</SelectItem>
+              {categories.map(cat => (
+                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => {
+            setEditItem(null)
+            setFormData({
+              categoryId: '',
+              question: '',
+              regulationText: '',
+              imageUrl: '',
+              order: 0,
+              penaltyType: ''
+            })
+            setShowDialog(true)
+          }}>
+            <Plus className="h-4 w-4 mr-2" /> Yeni Soru
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Kategori</TableHead>
+              <TableHead>Soru</TableHead>
+              <TableHead>Ceza Türü</TableHead>
+              <TableHead>Sıra</TableHead>
+              <TableHead className="text-right">İşlemler</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredQuestions.map(q => (
+              <TableRow key={q.id}>
+                <TableCell>
+                  <Badge variant="outline">{q.category?.name}</Badge>
+                </TableCell>
+                <TableCell className="max-w-md">
+                  <p className="line-clamp-2">{q.question}</p>
+                </TableCell>
+                <TableCell>
+                  {q.penaltyType && (
+                    <Badge variant="destructive">{q.penaltyType}</Badge>
+                  )}
+                </TableCell>
+                <TableCell>{q.order}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => handleEdit(q)}>
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(q.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'Soru Düzenle' : 'Yeni Soru Ekle'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Kategori *</Label>
+              <Select value={formData.categoryId} onValueChange={(val) => setFormData({...formData, categoryId: val})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Kategori seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Denetim Sorusu *</Label>
+              <Textarea 
+                rows={3}
+                value={formData.question} 
+                onChange={(e) => setFormData({...formData, question: e.target.value})} 
+                placeholder="Örn: Yangın söndürme tüplerinin periyodik kontrolleri yapılmış mı?"
+              />
+            </div>
+            <div>
+              <Label>Yönetmelik Açıklaması</Label>
+              <Textarea 
+                rows={3}
+                value={formData.regulationText} 
+                onChange={(e) => setFormData({...formData, regulationText: e.target.value})}
+                placeholder="İlgili yönetmelik maddesini yazın"
+              />
+            </div>
+            <div>
+              <Label>Görsel URL</Label>
+              <Input 
+                value={formData.imageUrl} 
+                onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+            <div>
+              <Label>Sıra Numarası</Label>
+              <Input 
+                type="number" 
+                value={formData.order} 
+                onChange={(e) => setFormData({...formData, order: parseInt(e.target.value)})} 
+              />
+            </div>
+            <div>
+              <Label>Ceza Gerekliliği</Label>
+              <Select value={formData.penaltyType} onValueChange={(val) => setFormData({...formData, penaltyType: val})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Ceza türü seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Yok</SelectItem>
+                  <SelectItem value="idari_para_cezasi">İdari Para Cezası</SelectItem>
+                  <SelectItem value="uyarı">Uyarı</SelectItem>
+                  <SelectItem value="kınama">Kınama</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSave} className="w-full">Kaydet</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 // Staff Tab (Basitleştirilmiş)
+// Staff Tab - Tam CRUD
 function StaffTab({ token }) {
   const [staff, setStaff] = useState([])
+  const [showDialog, setShowDialog] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    password: ''
+  })
+
+  const loadStaff = async () => {
+    const response = await fetch('/api/admin/staff', { headers: { Authorization: `Bearer ${token}` } })
+    setStaff(await response.json())
+  }
 
   useEffect(() => {
-    fetch('/api/admin/staff', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setStaff)
+    loadStaff()
   }, [])
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.phone) {
+      sonnerToast.error('Ad soyad ve telefon zorunludur')
+      return
+    }
+    
+    if (!editItem && !formData.password) {
+      sonnerToast.error('Yeni personel için şifre zorunludur')
+      return
+    }
+
+    const url = editItem ? `/api/admin/staff/${editItem.id}` : '/api/admin/staff'
+    const method = editItem ? 'PUT' : 'POST'
+    
+    const response = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(formData)
+    })
+    
+    if (response.ok) {
+      sonnerToast.success(editItem ? 'Personel güncellendi' : 'Personel eklendi')
+      setShowDialog(false)
+      setEditItem(null)
+      setFormData({ name: '', phone: '', password: '' })
+      loadStaff()
+    } else {
+      const error = await response.json()
+      sonnerToast.error(error.error || 'Hata oluştu')
+    }
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bu personeli silmek istediğinizden emin misiniz?')) return
+    await fetch(`/api/admin/staff/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    sonnerToast.success('Personel silindi')
+    loadStaff()
+  }
+
+  const handleEdit = (item) => {
+    setEditItem(item)
+    setFormData({
+      name: item.name,
+      phone: item.phone,
+      password: ''
+    })
+    setShowDialog(true)
+  }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Personel ({staff.length})</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Denetim Personeli ({staff.length})</h2>
+        <Button onClick={() => {
+          setEditItem(null)
+          setFormData({ name: '', phone: '', password: '' })
+          setShowDialog(true)
+        }}>
+          <Plus className="h-4 w-4 mr-2" /> Yeni Personel
+        </Button>
+      </div>
+      
       <Card>
         <Table>
           <TableHeader>
@@ -1226,19 +1512,66 @@ function StaffTab({ token }) {
               <TableHead>Ad Soyad</TableHead>
               <TableHead>Telefon</TableHead>
               <TableHead>Kayıt Tarihi</TableHead>
+              <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {staff.map(s => (
               <TableRow key={s.id}>
-                <TableCell>{s.name}</TableCell>
+                <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell>{s.phone}</TableCell>
                 <TableCell>{new Date(s.createdAt).toLocaleDateString('tr-TR')}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => handleEdit(s)}>
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(s.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'Personel Düzenle' : 'Yeni Personel Ekle'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Ad Soyad *</Label>
+              <Input 
+                value={formData.name} 
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                placeholder="Örn: Ahmet Yılmaz"
+              />
+            </div>
+            <div>
+              <Label>Telefon *</Label>
+              <Input 
+                value={formData.phone} 
+                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                placeholder="05xxxxxxxxx"
+              />
+            </div>
+            <div>
+              <Label>Şifre {editItem ? '(Değiştirmek için doldurun)' : '*'}</Label>
+              <Input 
+                type="password"
+                value={formData.password} 
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                placeholder={editItem ? 'Boş bırakılırsa değişmez' : 'Şifre girin'}
+              />
+            </div>
+            <Button onClick={handleSave} className="w-full">
+              {editItem ? 'Güncelle' : 'Ekle'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1449,37 +1782,469 @@ function InspectionsTab({ token }) {
 }
 
 // Inspector Panel (Basitleştirilmiş)
+// Inspector Panel - Tablet Denetim Sistemi
 function InspectorPanel({ token, user }) {
+  const [view, setView] = useState('list') // list, detail, inspection
   const [inspections, setInspections] = useState([])
+  const [selectedInspection, setSelectedInspection] = useState(null)
+  const [categories, setCategories] = useState([])
+  const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0)
+  const [answers, setAnswers] = useState({})
 
   useEffect(() => {
-    fetch('/api/inspector/inspections', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setInspections)
+    loadInspections()
   }, [])
+
+  const loadInspections = async () => {
+    const response = await fetch('/api/inspector/inspections', { 
+      headers: { Authorization: `Bearer ${token}` } 
+    })
+    setInspections(await response.json())
+  }
+
+  const startInspection = async (inspection) => {
+    try {
+      const response = await fetch('/api/inspector/inspection/start', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ inspectionId: inspection.id })
+      })
+      
+      const data = await response.json()
+      setSelectedInspection(data.inspection)
+      setCategories(data.categories)
+      setCurrentCategoryIndex(0)
+      setAnswers({})
+      setView('inspection')
+      sonnerToast.success('Denetim başlatıldı')
+    } catch (error) {
+      sonnerToast.error('Hata oluştu')
+    }
+  }
+
+  const saveAnswer = async (questionId, answer, note = '', photos = []) => {
+    try {
+      await fetch('/api/inspector/inspection/answer', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          inspectionId: selectedInspection.id,
+          questionId,
+          answer,
+          note,
+          photos
+        })
+      })
+      
+      setAnswers({
+        ...answers,
+        [questionId]: { answer, note, photos }
+      })
+      
+      sonnerToast.success('Cevap kaydedildi')
+    } catch (error) {
+      sonnerToast.error('Kaydetme hatası')
+    }
+  }
+
+  const completeInspection = async () => {
+    if (!confirm('Denetimi tamamlamak istediğinizden emin misiniz?')) return
+    
+    try {
+      await fetch('/api/inspector/inspection/complete', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ inspectionId: selectedInspection.id })
+      })
+      
+      sonnerToast.success('Denetim tamamlandı!')
+      setView('list')
+      loadInspections()
+    } catch (error) {
+      sonnerToast.error('Hata oluştu')
+    }
+  }
+
+  if (view === 'inspection' && selectedInspection && categories.length > 0) {
+    return <InspectionFlow 
+      inspection={selectedInspection}
+      categories={categories}
+      currentCategoryIndex={currentCategoryIndex}
+      setCurrentCategoryIndex={setCurrentCategoryIndex}
+      answers={answers}
+      saveAnswer={saveAnswer}
+      completeInspection={completeInspection}
+      onCancel={() => setView('list')}
+      token={token}
+    />
+  }
 
   return (
     <div className="py-8">
-      <div className="container mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-6">Denetim Paneli</h1>
-        <p className="text-muted-foreground mb-6">Hoş geldiniz, {user.name}</p>
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Denetim Paneli</h1>
+          <p className="text-muted-foreground">Hoş geldiniz, {user.name}</p>
+        </div>
         
-        <h2 className="text-2xl font-bold mb-4">Denetimlerim ({inspections.length})</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {inspections.map(insp => (
-            <Card key={insp.id}>
-              <CardHeader>
-                <CardTitle>{insp.schoolName}</CardTitle>
-                <CardDescription>{insp.city?.name} / {insp.district}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div>Paket: {insp.package?.name}</div>
-                  <div>Durum: {insp.status === 'completed' ? 'Tamamlandı' : insp.status === 'in_progress' ? 'Devam Ediyor' : 'Bekliyor'}</div>
-                  <div>Tarih: {new Date(insp.createdAt).toLocaleDateString('tr-TR')}</div>
+        <h2 className="text-2xl font-bold mb-6">Denetimlerim ({inspections.length})</h2>
+        
+        {inspections.length === 0 ? (
+          <Card className="p-12 text-center">
+            <ClipboardList className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-xl font-semibold mb-2">Henüz atanmış denetim yok</h3>
+            <p className="text-muted-foreground">Yönetici size denetim atadığında buradan görebileceksiniz</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {inspections.map(insp => (
+              <Card key={insp.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">{insp.schoolName}</CardTitle>
+                      <CardDescription>{insp.city?.name} / {insp.district}</CardDescription>
+                    </div>
+                    {insp.status === 'completed' && (
+                      <Badge variant="success" className="bg-green-100 text-green-800">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Tamamlandı
+                      </Badge>
+                    )}
+                    {insp.status === 'in_progress' && (
+                      <Badge variant="default">
+                        <Clock className="h-3 w-3 mr-1" /> Devam Ediyor
+                      </Badge>
+                    )}
+                    {insp.status === 'pending' && (
+                      <Badge variant="secondary">Bekliyor</Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <span>{insp.package?.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>{new Date(insp.createdAt).toLocaleDateString('tr-TR', {
+                        year: 'numeric',
+                        month: 'long', 
+                        day: 'numeric'
+                      })}</span>
+                    </div>
+                    
+                    {insp.payment?.status === 'completed' ? (
+                      <div className="pt-4 border-t">
+                        {insp.status === 'pending' && (
+                          <Button className="w-full" onClick={() => startInspection(insp)}>
+                            <Zap className="h-4 w-4 mr-2" />
+                            Denetimi Başlat
+                          </Button>
+                        )}
+                        {insp.status === 'in_progress' && (
+                          <Button className="w-full" variant="outline" onClick={() => startInspection(insp)}>
+                            Denetim e Devam Et
+                          </Button>
+                        )}
+                        {insp.status === 'completed' && (
+                          <Button className="w-full" variant="outline" disabled>
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Tamamlandı
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="pt-4 border-t">
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                          <p className="text-sm text-yellow-800 flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            Ödeme bekleniyor
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Inspection Flow Component
+function InspectionFlow({ 
+  inspection, 
+  categories, 
+  currentCategoryIndex, 
+  setCurrentCategoryIndex,
+  answers,
+  saveAnswer,
+  completeInspection,
+  onCancel,
+  token
+}) {
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [localAnswer, setLocalAnswer] = useState('')
+  const [localNote, setLocalNote] = useState('')
+  const [localPhotos, setLocalPhotos] = useState([])
+  const [uploading, setUploading] = useState(false)
+
+  const currentCategory = categories[currentCategoryIndex]
+  const currentQuestion = currentCategory?.questions[currentQuestionIndex]
+  const totalQuestions = currentCategory?.questions.length || 0
+  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
+  const isLastCategory = currentCategoryIndex === categories.length - 1
+
+  useEffect(() => {
+    if (currentQuestion) {
+      const savedAnswer = answers[currentQuestion.id]
+      setLocalAnswer(savedAnswer?.answer || '')
+      setLocalNote(savedAnswer?.note || '')
+      setLocalPhotos(savedAnswer?.photos || [])
+    }
+  }, [currentQuestion, answers])
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('photo', file)
+
+    try {
+      const response = await fetch('/api/inspector/inspection/upload-photo', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      })
+      const data = await response.json()
+      setLocalPhotos([...localPhotos, data.url])
+      sonnerToast.success('Fotoğraf yüklendi')
+    } catch (error) {
+      sonnerToast.error('Yükleme hatası')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleNext = async () => {
+    if (!localAnswer) {
+      sonnerToast.error('Lütfen bir cevap seçin')
+      return
+    }
+
+    await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+
+    if (isLastQuestion) {
+      if (isLastCategory) {
+        // Son soru, son kategori - tamamla
+        await completeInspection()
+      } else {
+        // Sonraki kategoriye geç
+        setCurrentCategoryIndex(currentCategoryIndex + 1)
+        setCurrentQuestionIndex(0)
+      }
+    } else {
+      // Sonraki soruya geç
+      setCurrentQuestionIndex(currentQuestionIndex + 1)
+    }
+
+    // Reset local state
+    setLocalAnswer('')
+    setLocalNote('')
+    setLocalPhotos([])
+  }
+
+  const handlePrevious = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1)
+    } else if (currentCategoryIndex > 0) {
+      setCurrentCategoryIndex(currentCategoryIndex - 1)
+      setCurrentQuestionIndex(categories[currentCategoryIndex - 1].questions.length - 1)
+    }
+  }
+
+  if (!currentQuestion) return null
+
+  const progress = ((currentCategoryIndex * 100) + ((currentQuestionIndex + 1) / totalQuestions * 100)) / categories.length
+
+  return (
+    <div className="min-h-screen bg-muted/20">
+      {/* Header */}
+      <div className="bg-white border-b sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">{inspection.schoolName}</h2>
+              <p className="text-sm text-muted-foreground">{currentCategory.name}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onCancel}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Soru {currentQuestionIndex + 1} / {totalQuestions}</span>
+              <span>Kategori {currentCategoryIndex + 1} / {categories.length}</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-2">
+              <div 
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Question Content */}
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
+        <Card>
+          <CardContent className="p-6 space-y-6">
+            {/* Question */}
+            <div>
+              <h3 className="text-xl font-bold mb-2">{currentQuestion.question}</h3>
+              {currentQuestion.regulationText && (
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mt-4">
+                  <p className="text-sm font-semibold text-blue-900 mb-1">Yönetmelik:</p>
+                  <p className="text-sm text-blue-800">{currentQuestion.regulationText}</p>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              )}
+            </div>
+
+            {/* Image */}
+            {currentQuestion.imageUrl && (
+              <img 
+                src={currentQuestion.imageUrl} 
+                alt="Soru görseli"
+                className="w-full rounded-lg"
+              />
+            )}
+
+            {/* Answer Options */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Cevabınız:</Label>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  { value: 'uygun', label: 'UYGUN', color: 'bg-green-50 border-green-500 text-green-900', icon: CheckCircle2 },
+                  { value: 'uygun_degil', label: 'UYGUN DEĞİL', color: 'bg-red-50 border-red-500 text-red-900', icon: XCircle },
+                  { value: 'goreceli', label: 'GÖRECELİ', color: 'bg-yellow-50 border-yellow-500 text-yellow-900', icon: AlertCircle }
+                ].map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setLocalAnswer(option.value)}
+                    className={`p-4 rounded-lg border-2 transition-all text-left flex items-center gap-3 ${
+                      localAnswer === option.value 
+                        ? `${option.color} border-opacity-100` 
+                        : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <option.icon className="h-6 w-6" />
+                    <span className="font-semibold text-lg">{option.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Note */}
+            <div>
+              <Label>Not (Opsiyonel)</Label>
+              <Textarea 
+                value={localNote}
+                onChange={(e) => setLocalNote(e.target.value)}
+                placeholder="Varsa ek açıklama yazın..."
+                rows={3}
+              />
+            </div>
+
+            {/* Photo Upload */}
+            <div>
+              <Label>Fotoğraf Ekle</Label>
+              <div className="mt-2 space-y-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoUpload}
+                  disabled={uploading}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <label htmlFor="photo-upload">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full"
+                    disabled={uploading}
+                    onClick={() => document.getElementById('photo-upload').click()}
+                  >
+                    <Camera className="h-4 w-4 mr-2" />
+                    {uploading ? 'Yükleniyor...' : 'Fotoğraf Çek'}
+                  </Button>
+                </label>
+                
+                {localPhotos.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {localPhotos.map((photo, i) => (
+                      <div key={i} className="relative aspect-square">
+                        <img src={photo} alt={`Foto ${i + 1}`} className="w-full h-full object-cover rounded" />
+                        <button
+                          onClick={() => setLocalPhotos(localPhotos.filter((_, idx) => idx !== i))}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Penalty Info */}
+            {currentQuestion.penaltyType && localAnswer === 'uygun_degil' && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-red-900 mb-1">⚠️ Ceza Gerekliliği:</p>
+                <p className="text-sm text-red-800">{currentQuestion.penaltyType}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Navigation */}
+        <div className="flex gap-4 mt-6">
+          {(currentQuestionIndex > 0 || currentCategoryIndex > 0) && (
+            <Button 
+              variant="outline" 
+              onClick={handlePrevious}
+              className="flex-1"
+            >
+              ← Önceki Soru
+            </Button>
+          )}
+          <Button 
+            onClick={handleNext}
+            disabled={!localAnswer}
+            className="flex-1"
+          >
+            {isLastQuestion && isLastCategory ? 'Denetimi Tamamla' : 'Sonraki Soru'} →
+          </Button>
         </div>
       </div>
     </div>
