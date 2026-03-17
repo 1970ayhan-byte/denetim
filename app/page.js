@@ -1062,7 +1062,7 @@ function AdminPanel({ token }) {
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold mb-6">Admin Paneli</h1>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 lg:grid-cols-8 mb-6">
+          <TabsList className="grid grid-cols-4 lg:grid-cols-10 mb-6">
             <TabsTrigger value="categories">Kategoriler</TabsTrigger>
             <TabsTrigger value="questions">Sorular</TabsTrigger>
             <TabsTrigger value="staff">Personel</TabsTrigger>
@@ -1071,6 +1071,8 @@ function AdminPanel({ token }) {
             <TabsTrigger value="messages">Mesajlar</TabsTrigger>
             <TabsTrigger value="payments">Ödemeler</TabsTrigger>
             <TabsTrigger value="inspections">Denetimler</TabsTrigger>
+            <TabsTrigger value="news">Haberler</TabsTrigger>
+            <TabsTrigger value="assign">Atama</TabsTrigger>
           </TabsList>
           <TabsContent value="categories"><CategoriesTab token={token} /></TabsContent>
           <TabsContent value="questions"><QuestionsTab token={token} /></TabsContent>
@@ -1080,6 +1082,8 @@ function AdminPanel({ token }) {
           <TabsContent value="messages"><MessagesTab token={token} /></TabsContent>
           <TabsContent value="payments"><PaymentsTab token={token} /></TabsContent>
           <TabsContent value="inspections"><InspectionsTab token={token} /></TabsContent>
+          <TabsContent value="news"><NewsManagementTab token={token} /></TabsContent>
+          <TabsContent value="assign"><InspectionAssignmentTab token={token} /></TabsContent>
         </Tabs>
       </div>
     </div>
@@ -2192,6 +2196,353 @@ function PaymentsTab({ token }) {
 }
 
 // Inspections Tab
+// News Management Tab - Haber Yönetimi
+function NewsManagementTab({ token }) {
+  const [news, setNews] = useState([])
+  const [showDialog, setShowDialog] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    imageUrl: '',
+    keywords: '',
+    published: true
+  })
+
+  const loadNews = async () => {
+    const response = await fetch('/api/admin/news', { headers: { Authorization: `Bearer ${token}` } })
+    setNews(await response.json())
+  }
+
+  useEffect(() => {
+    loadNews()
+  }, [])
+
+  const handleSave = async () => {
+    if (!formData.title || !formData.content) {
+      sonnerToast.error('Başlık ve içerik zorunludur')
+      return
+    }
+
+    const url = editItem ? `/api/admin/news/${editItem.id}` : '/api/admin/news'
+    const method = editItem ? 'PUT' : 'POST'
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(formData)
+    })
+    
+    sonnerToast.success(editItem ? 'Haber güncellendi' : 'Haber eklendi')
+    setShowDialog(false)
+    setEditItem(null)
+    setFormData({ title: '', content: '', imageUrl: '', keywords: '', published: true })
+    loadNews()
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bu haberi silmek istediğinizden emin misiniz?')) return
+    await fetch(`/api/admin/news/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    sonnerToast.success('Haber silindi')
+    loadNews()
+  }
+
+  const handleEdit = (item) => {
+    setEditItem(item)
+    setFormData({
+      title: item.title,
+      content: item.content,
+      imageUrl: item.imageUrl || '',
+      keywords: item.keywords || '',
+      published: item.published
+    })
+    setShowDialog(true)
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Haberler ({news.length})</h2>
+        <Button onClick={() => {
+          setEditItem(null)
+          setFormData({ title: '', content: '', imageUrl: '', keywords: '', published: true })
+          setShowDialog(true)
+        }}>
+          <Plus className="h-4 w-4 mr-2" /> Yeni Haber
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {news.map(item => (
+          <Card key={item.id}>
+            {item.imageUrl && (
+              <img src={item.imageUrl} alt={item.title} className="w-full h-48 object-cover rounded-t-lg" />
+            )}
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-lg line-clamp-2">{item.title}</CardTitle>
+                {item.published && <Badge>Yayında</Badge>}
+              </div>
+              <CardDescription>
+                {new Date(item.createdAt).toLocaleDateString('tr-TR')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{item.content}</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => handleEdit(item)} className="flex-1">
+                  <Edit2 className="h-3 w-3 mr-1" /> Düzenle
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => handleDelete(item.id)}>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'Haber Düzenle' : 'Yeni Haber Ekle'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Başlık *</Label>
+              <Input 
+                value={formData.title} 
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                placeholder="Haber başlığı"
+              />
+            </div>
+            <div>
+              <Label>İçerik *</Label>
+              <Textarea 
+                rows={8}
+                value={formData.content} 
+                onChange={(e) => setFormData({...formData, content: e.target.value})}
+                placeholder="Haber içeriği..."
+              />
+            </div>
+            <div>
+              <Label>Görsel URL</Label>
+              <Input 
+                value={formData.imageUrl} 
+                onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+            <div>
+              <Label>SEO Anahtar Kelimeleri</Label>
+              <Input 
+                value={formData.keywords} 
+                onChange={(e) => setFormData({...formData, keywords: e.target.value})}
+                placeholder="meb, denetim, yangın (virgülle ayırın)"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="published"
+                checked={formData.published}
+                onChange={(e) => setFormData({...formData, published: e.target.checked})}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="published">Yayınla (Web sitesinde göster)</Label>
+            </div>
+            <Button onClick={handleSave} className="w-full">
+              {editItem ? 'Güncelle' : 'Ekle'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// Inspection Assignment Tab - Denetim Atama
+function InspectionAssignmentTab({ token }) {
+  const [staff, setStaff] = useState([])
+  const [packages, setPackages] = useState([])
+  const [cities, setCities] = useState([])
+  const [formData, setFormData] = useState({
+    schoolName: '',
+    cityId: '',
+    district: '',
+    packageId: '',
+    inspectorId: '',
+    schoolContact: '',
+    schoolPhone: '',
+    schoolEmail: '',
+    capacity: ''
+  })
+
+  useEffect(() => {
+    fetch('/api/admin/staff', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(setStaff)
+    fetch('/api/admin/packages', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(setPackages)
+    fetch('/api/admin/cities', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(setCities)
+  }, [])
+
+  const handleAssign = async () => {
+    if (!formData.schoolName || !formData.cityId || !formData.packageId || !formData.inspectorId) {
+      sonnerToast.error('Okul adı, il, paket ve danışman seçimi zorunludur')
+      return
+    }
+
+    // Create mock payment and inspection
+    const paymentResponse = await fetch('/api/payment/initiate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        schoolName: formData.schoolName,
+        cityId: formData.cityId,
+        district: formData.district,
+        packageId: formData.packageId,
+        contactName: formData.schoolContact,
+        contactPhone: formData.schoolPhone,
+        contactEmail: formData.schoolEmail,
+        amount: packages.find(p => p.id === formData.packageId)?.price || 0
+      })
+    })
+
+    const paymentData = await paymentResponse.json()
+
+    if (paymentData.success) {
+      // Assign inspector to the inspection
+      await fetch(`/api/admin/inspections/${paymentData.inspection.id}/assign`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ inspectorId: formData.inspectorId })
+      })
+
+      sonnerToast.success('Denetim oluşturuldu ve danışmana atandı!')
+      setFormData({
+        schoolName: '',
+        cityId: '',
+        district: '',
+        packageId: '',
+        inspectorId: '',
+        schoolContact: '',
+        schoolPhone: '',
+        schoolEmail: '',
+        capacity: ''
+      })
+    } else {
+      sonnerToast.error('Denetim oluşturulamadı')
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6">Denetim Atama</h2>
+      <Card className="max-w-2xl">
+        <CardHeader>
+          <CardTitle>Yeni Denetim Oluştur ve Danışman Ata</CardTitle>
+          <CardDescription>Kurum bilgilerini girin ve danışman atayın</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Okul Adı *</Label>
+            <Input 
+              value={formData.schoolName}
+              onChange={(e) => setFormData({...formData, schoolName: e.target.value})}
+              placeholder="Örn: Mutlu Çocuklar Anaokulu"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>İl *</Label>
+              <Select value={formData.cityId} onValueChange={(val) => setFormData({...formData, cityId: val})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="İl seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cities.map(city => (
+                    <SelectItem key={city.id} value={city.id}>{city.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>İlçe</Label>
+              <Input 
+                value={formData.district}
+                onChange={(e) => setFormData({...formData, district: e.target.value})}
+                placeholder="İlçe"
+              />
+            </div>
+          </div>
+          <div>
+            <Label>Paket *</Label>
+            <Select value={formData.packageId} onValueChange={(val) => setFormData({...formData, packageId: val})}>
+              <SelectTrigger>
+                <SelectValue placeholder="Paket seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {packages.map(pkg => (
+                  <SelectItem key={pkg.id} value={pkg.id}>
+                    {pkg.name} ({pkg.price.toLocaleString('tr-TR')} TL)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Danışman (Denetçi) *</Label>
+            <Select value={formData.inspectorId} onValueChange={(val) => setFormData({...formData, inspectorId: val})}>
+              <SelectTrigger>
+                <SelectValue placeholder="Danışman seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {staff.map(s => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} ({s.phone})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="border-t pt-4">
+            <h4 className="font-semibold mb-3">Yetkili Bilgileri (Opsiyonel)</h4>
+            <div className="space-y-3">
+              <Input 
+                value={formData.schoolContact}
+                onChange={(e) => setFormData({...formData, schoolContact: e.target.value})}
+                placeholder="Yetkili Ad Soyad"
+              />
+              <Input 
+                value={formData.schoolPhone}
+                onChange={(e) => setFormData({...formData, schoolPhone: e.target.value})}
+                placeholder="Telefon"
+              />
+              <Input 
+                value={formData.schoolEmail}
+                onChange={(e) => setFormData({...formData, schoolEmail: e.target.value})}
+                placeholder="E-posta"
+              />
+              <Input 
+                value={formData.capacity}
+                onChange={(e) => setFormData({...formData, capacity: e.target.value})}
+                placeholder="Kontenjan"
+              />
+            </div>
+          </div>
+          <Button onClick={handleAssign} className="w-full" size="lg">
+            Denetim Oluştur ve Danışmana Ata
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 // Inspections Tab - Raporlama ve PDF İndirme
 function InspectionsTab({ token }) {
   const [inspections, setInspections] = useState([])
