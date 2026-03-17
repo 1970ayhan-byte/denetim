@@ -1205,7 +1205,7 @@ function QuestionsTab({ token }) {
     regulationText: '',
     imageUrl: '',
     order: 0,
-    penaltyType: ''
+    penaltyType: 'none'
   })
 
   const loadQuestions = async () => {
@@ -1230,6 +1230,11 @@ function QuestionsTab({ token }) {
       sonnerToast.error('Kategori ve soru zorunludur')
       return
     }
+    
+    if (!formData.categoryId) {
+      sonnerToast.error('Lütfen bir kategori seçin')
+      return
+    }
 
     const url = editItem ? `/api/admin/questions/${editItem.id}` : '/api/admin/questions'
     const method = editItem ? 'PUT' : 'POST'
@@ -1247,7 +1252,7 @@ function QuestionsTab({ token }) {
       regulationText: '',
       imageUrl: '',
       order: 0,
-      penaltyType: ''
+      penaltyType: 'none'
     })
     loadQuestions()
   }
@@ -1270,7 +1275,7 @@ function QuestionsTab({ token }) {
       regulationText: item.regulationText || '',
       imageUrl: item.imageUrl || '',
       order: item.order || 0,
-      penaltyType: item.penaltyType || ''
+      penaltyType: item.penaltyType || 'none'
     })
     setShowDialog(true)
   }
@@ -1408,7 +1413,7 @@ function QuestionsTab({ token }) {
                   <SelectValue placeholder="Ceza türü seçin" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Yok</SelectItem>
+                  <SelectItem value="none">Yok</SelectItem>
                   <SelectItem value="idari_para_cezasi">İdari Para Cezası</SelectItem>
                   <SelectItem value="uyarı">Uyarı</SelectItem>
                   <SelectItem value="kınama">Kınama</SelectItem>

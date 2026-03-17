@@ -154,6 +154,10 @@ async function handleRoute(request, { params }) {
       }
       
       const data = await request.json()
+      // Convert 'none' to empty string for penaltyType
+      if (data.penaltyType === 'none') {
+        data.penaltyType = ''
+      }
       const question = await prisma.question.create({ data })
       return handleCORS(NextResponse.json(question))
     }
@@ -166,6 +170,10 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
+      // Convert 'none' to empty string for penaltyType
+      if (data.penaltyType === 'none') {
+        data.penaltyType = ''
+      }
       const question = await prisma.question.update({
         where: { id },
         data
