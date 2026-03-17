@@ -1577,46 +1577,311 @@ function StaffTab({ token }) {
 }
 
 // Packages Tab (Basitleştirilmiş)
+// Packages Tab - Tam CRUD
 function PackagesTab({ token }) {
   const [packages, setPackages] = useState([])
+  const [showDialog, setShowDialog] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    price: '',
+    description: '',
+    features: [],
+    active: true
+  })
+  const [featureInput, setFeatureInput] = useState('')
+
+  const loadPackages = async () => {
+    const response = await fetch('/api/admin/packages', { headers: { Authorization: `Bearer ${token}` } })
+    setPackages(await response.json())
+  }
 
   useEffect(() => {
-    fetch('/api/admin/packages', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setPackages)
+    loadPackages()
   }, [])
+
+  const handleSave = async () => {
+    if (!formData.name || !formData.price) {
+      sonnerToast.error('Paket adı ve fiyat zorunludur')
+      return
+    }
+
+    const url = editItem ? `/api/admin/packages/${editItem.id}` : '/api/admin/packages'
+    const method = editItem ? 'PUT' : 'POST'
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        ...formData,
+        price: parseFloat(formData.price)
+      })
+    })
+    
+    sonnerToast.success(editItem ? 'Paket güncellendi' : 'Paket eklendi')
+    setShowDialog(false)
+    setEditItem(null)
+    setFormData({ name: '', price: '', description: '', features: [], active: true })
+    loadPackages()
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bu paketi silmek istediğinizden emin misiniz?')) return
+    await fetch(`/api/admin/packages/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    sonnerToast.success('Paket silindi')
+    loadPackages()
+  }
+
+  const handleEdit = (item) => {
+    setEditItem(item)
+    const features = typeof item.features === 'string' ? JSON.parse(item.features || '[]') : item.features
+    setFormData({
+      name: item.name,
+      price: item.price.toString(),
+      description: item.description || '',
+      features: features,
+      active: item.active
+    })
+    setShowDialog(true)
+  }
+
+  const addFeature = () => {
+    if (featureInput.trim()) {
+      setFormData({
+        ...formData,
+        features: [...formData.features, featureInput.trim()]
+      })
+      setFeatureInput('')
+    }
+  }
+
+  const removeFeature = (index) => {
+    setFormData({
+      ...formData,
+      features: formData.features.filter((_, i) => i !== index)
+    })
+  }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Paketler ({packages.length})</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {packages.map(pkg => (
-          <Card key={pkg.id}>
-            <CardHeader>
-              <CardTitle>{pkg.name}</CardTitle>
-              <CardDescription>{pkg.price.toLocaleString('tr-TR')} TL</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm">{pkg.description}</p>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Paketler ({packages.length})</h2>
+        <Button onClick={() => {
+          setEditItem(null)
+          setFormData({ name: '', price: '', description: '', features: [], active: true })
+          setShowDialog(true)
+        }}>
+          <Plus className="h-4 w-4 mr-2" /> Yeni Paket
+        </Button>
       </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {packages.map(pkg => {
+          const features = typeof pkg.features === 'string' ? JSON.parse(pkg.features || '[]') : pkg.features
+          return (
+            <Card key={pkg.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>{pkg.name}</CardTitle>
+                    <CardDescription>{pkg.price.toLocaleString('tr-TR')} TL + KDV</CardDescription>
+                  </div>
+                  {pkg.active && <Badge>Aktif</Badge>}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm mb-3">{pkg.description}</p>
+                <div className="space-y-1 mb-4">
+                  {features.slice(0, 3).map((feature, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                      <span className="line-clamp-1">{feature}</span>
+                    </div>
+                  ))}
+                  {features.length > 3 && (
+                    <p className="text-xs text-muted-foreground">+{features.length - 3} özellik daha</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => handleEdit(pkg)} className="flex-1">
+                    <Edit2 className="h-3 w-3 mr-1" /> Düzenle
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(pkg.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'Paket Düzenle' : 'Yeni Paket Ekle'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Paket Adı *</Label>
+              <Input 
+                value={formData.name} 
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                placeholder="Örn: FULL DENETLEME"
+              />
+            </div>
+            <div>
+              <Label>Fiyat (KDV Hariç) *</Label>
+              <Input 
+                type="number"
+                value={formData.price} 
+                onChange={(e) => setFormData({...formData, price: e.target.value})}
+                placeholder="20000"
+              />
+            </div>
+            <div>
+              <Label>Kısa Açıklama</Label>
+              <Textarea 
+                rows={2}
+                value={formData.description} 
+                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                placeholder="Paket hakkında kısa bilgi"
+              />
+            </div>
+            <div>
+              <Label>Paket İçeriği</Label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input 
+                    value={featureInput}
+                    onChange={(e) => setFeatureInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
+                    placeholder="Özellik girin ve Enter'a basın"
+                  />
+                  <Button type="button" onClick={addFeature}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  {formData.features.map((feature, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-muted p-2 rounded">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span className="flex-1 text-sm">{feature}</span>
+                      <Button 
+                        type="button"
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => removeFeature(i)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="active"
+                checked={formData.active}
+                onChange={(e) => setFormData({...formData, active: e.target.checked})}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="active">Aktif (Web sitesinde göster)</Label>
+            </div>
+            <Button onClick={handleSave} className="w-full">
+              {editItem ? 'Güncelle' : 'Ekle'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-// Cities Tab (Basitleştirilmiş)
+// Cities Tab - Tam CRUD
 function CitiesTab({ token }) {
   const [cities, setCities] = useState([])
+  const [showDialog, setShowDialog] = useState(false)
+  const [editItem, setEditItem] = useState(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    travelCost: 0,
+    accommodationCost: 0
+  })
+
+  const loadCities = async () => {
+    const response = await fetch('/api/admin/cities', { headers: { Authorization: `Bearer ${token}` } })
+    setCities(await response.json())
+  }
 
   useEffect(() => {
-    fetch('/api/admin/cities', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setCities)
+    loadCities()
   }, [])
+
+  const handleSave = async () => {
+    if (!formData.name) {
+      sonnerToast.error('İl adı zorunludur')
+      return
+    }
+
+    const url = editItem ? `/api/admin/cities/${editItem.id}` : '/api/admin/cities'
+    const method = editItem ? 'PUT' : 'POST'
+    
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        ...formData,
+        travelCost: parseFloat(formData.travelCost),
+        accommodationCost: parseFloat(formData.accommodationCost)
+      })
+    })
+    
+    sonnerToast.success(editItem ? 'İl güncellendi' : 'İl eklendi')
+    setShowDialog(false)
+    setEditItem(null)
+    setFormData({ name: '', travelCost: 0, accommodationCost: 0 })
+    loadCities()
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Bu ili silmek istediğinizden emin misiniz?')) return
+    await fetch(`/api/admin/cities/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    sonnerToast.success('İl silindi')
+    loadCities()
+  }
+
+  const handleEdit = (item) => {
+    setEditItem(item)
+    setFormData({
+      name: item.name,
+      travelCost: item.travelCost,
+      accommodationCost: item.accommodationCost
+    })
+    setShowDialog(true)
+  }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">İller ({cities.length})</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">İller ({cities.length})</h2>
+        <Button onClick={() => {
+          setEditItem(null)
+          setFormData({ name: '', travelCost: 0, accommodationCost: 0 })
+          setShowDialog(true)
+        }}>
+          <Plus className="h-4 w-4 mr-2" /> Yeni İl
+        </Button>
+      </div>
+      
       <Card>
         <Table>
           <TableHeader>
@@ -1624,35 +1889,145 @@ function CitiesTab({ token }) {
               <TableHead>İl</TableHead>
               <TableHead>Yol Ücreti</TableHead>
               <TableHead>Konaklama Ücreti</TableHead>
+              <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {cities.map(city => (
               <TableRow key={city.id}>
-                <TableCell>{city.name}</TableCell>
+                <TableCell className="font-medium">{city.name}</TableCell>
                 <TableCell>{city.travelCost.toLocaleString('tr-TR')} TL</TableCell>
                 <TableCell>{city.accommodationCost.toLocaleString('tr-TR')} TL</TableCell>
+                <TableCell className="text-right space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => handleEdit(city)}>
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(city.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editItem ? 'İl Düzenle' : 'Yeni İl Ekle'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>İl Adı *</Label>
+              <Input 
+                value={formData.name} 
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                placeholder="Örn: İstanbul"
+              />
+            </div>
+            <div>
+              <Label>Yol Ücreti (TL)</Label>
+              <Input 
+                type="number"
+                value={formData.travelCost} 
+                onChange={(e) => setFormData({...formData, travelCost: e.target.value})}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <Label>Konaklama Ücreti (TL)</Label>
+              <Input 
+                type="number"
+                value={formData.accommodationCost} 
+                onChange={(e) => setFormData({...formData, accommodationCost: e.target.value})}
+                placeholder="0"
+              />
+            </div>
+            <Button onClick={handleSave} className="w-full">
+              {editItem ? 'Güncelle' : 'Ekle'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-// Messages Tab
+// Messages Tab - CRM Sistemi
 function MessagesTab({ token }) {
   const [messages, setMessages] = useState([])
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [selectedMessage, setSelectedMessage] = useState(null)
+  const [showDialog, setShowDialog] = useState(false)
+  const [statusUpdate, setStatusUpdate] = useState('')
+  const [noteUpdate, setNoteUpdate] = useState('')
+
+  const loadMessages = async () => {
+    const url = filterStatus === 'all' 
+      ? '/api/admin/messages' 
+      : `/api/admin/messages?status=${filterStatus}`
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    setMessages(await response.json())
+  }
 
   useEffect(() => {
-    fetch('/api/admin/messages', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setMessages)
-  }, [])
+    loadMessages()
+  }, [filterStatus])
+
+  const handleUpdateStatus = async () => {
+    await fetch(`/api/admin/messages/${selectedMessage.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: statusUpdate, note: noteUpdate })
+    })
+    sonnerToast.success('Durum güncellendi')
+    setShowDialog(false)
+    loadMessages()
+  }
+
+  const openDialog = (msg) => {
+    setSelectedMessage(msg)
+    setStatusUpdate(msg.status)
+    setNoteUpdate(msg.note || '')
+    setShowDialog(true)
+  }
+
+  const statusColors = {
+    'new': 'bg-blue-100 text-blue-800',
+    'contacted': 'bg-yellow-100 text-yellow-800',
+    'positive': 'bg-green-100 text-green-800',
+    'negative': 'bg-red-100 text-red-800',
+    'wrong': 'bg-gray-100 text-gray-800'
+  }
+
+  const statusLabels = {
+    'new': 'Yeni',
+    'contacted': 'Görüşüldü',
+    'positive': 'Olumlu',
+    'negative': 'Olumsuz',
+    'wrong': 'Yanlış Mesaj'
+  }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Mesajlar ({messages.length})</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Mesajlar ({messages.length})</h2>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tümü</SelectItem>
+            <SelectItem value="new">Yeni</SelectItem>
+            <SelectItem value="contacted">Görüşüldü</SelectItem>
+            <SelectItem value="positive">Olumlu</SelectItem>
+            <SelectItem value="negative">Olumsuz</SelectItem>
+            <SelectItem value="wrong">Yanlış Mesaj</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
       <Card>
         <Table>
           <TableHeader>
@@ -1663,22 +2038,107 @@ function MessagesTab({ token }) {
               <TableHead>Tür</TableHead>
               <TableHead>Durum</TableHead>
               <TableHead>Tarih</TableHead>
+              <TableHead className="text-right">İşlem</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {messages.map(msg => (
-              <TableRow key={msg.id}>
-                <TableCell>{msg.name}</TableCell>
-                <TableCell>{msg.schoolName}</TableCell>
-                <TableCell>{msg.phone}</TableCell>
-                <TableCell>{msg.type === 'bilgi_almak' ? 'Bilgi' : 'Denetim'}</TableCell>
-                <TableCell>{msg.status}</TableCell>
-                <TableCell>{new Date(msg.createdAt).toLocaleDateString('tr-TR')}</TableCell>
+              <TableRow key={msg.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openDialog(msg)}>
+                <TableCell className="font-medium">{msg.name}</TableCell>
+                <TableCell>{msg.schoolName || '-'}</TableCell>
+                <TableCell>
+                  <a href={`tel:${msg.phone}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+                    {msg.phone}
+                  </a>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">
+                    {msg.type === 'bilgi_almak' ? 'Bilgi' : 'Denetim'}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge className={statusColors[msg.status]}>
+                    {statusLabels[msg.status]}
+                  </Badge>
+                </TableCell>
+                <TableCell>{new Date(msg.createdAt).toLocaleDateString('tr-TR', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</TableCell>
+                <TableCell className="text-right">
+                  <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openDialog(msg); }}>
+                    <Eye className="h-3 w-3" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mesaj Detayı</DialogTitle>
+          </DialogHeader>
+          {selectedMessage && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-semibold">Ad Soyad</Label>
+                <p>{selectedMessage.name}</p>
+              </div>
+              {selectedMessage.schoolName && (
+                <div>
+                  <Label className="text-sm font-semibold">Kurum</Label>
+                  <p>{selectedMessage.schoolName}</p>
+                </div>
+              )}
+              <div>
+                <Label className="text-sm font-semibold">Telefon</Label>
+                <p>
+                  <a href={`tel:${selectedMessage.phone}`} className="text-primary hover:underline">
+                    {selectedMessage.phone}
+                  </a>
+                </p>
+              </div>
+              <div>
+                <Label className="text-sm font-semibold">Talep Türü</Label>
+                <p>{selectedMessage.type === 'bilgi_almak' ? 'Bilgi Almak' : 'Denetim Yaptırmak'}</p>
+              </div>
+              <div>
+                <Label>Durum</Label>
+                <Select value={statusUpdate} onValueChange={setStatusUpdate}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="new">Yeni</SelectItem>
+                    <SelectItem value="contacted">Görüşüldü</SelectItem>
+                    <SelectItem value="positive">Olumlu</SelectItem>
+                    <SelectItem value="negative">Olumsuz</SelectItem>
+                    <SelectItem value="wrong">Yanlış Mesaj</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Not</Label>
+                <Textarea 
+                  value={noteUpdate}
+                  onChange={(e) => setNoteUpdate(e.target.value)}
+                  rows={3}
+                  placeholder="Görüşme notları..."
+                />
+              </div>
+              <Button onClick={handleUpdateStatus} className="w-full">
+                Kaydet
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1732,13 +2192,85 @@ function PaymentsTab({ token }) {
 }
 
 // Inspections Tab
+// Inspections Tab - Raporlama ve PDF İndirme
 function InspectionsTab({ token }) {
   const [inspections, setInspections] = useState([])
+  const [selectedInspection, setSelectedInspection] = useState(null)
+  const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [reportData, setReportData] = useState(null)
 
   useEffect(() => {
     fetch('/api/admin/inspections', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setInspections)
   }, [])
+
+  const viewReport = async (inspection) => {
+    const response = await fetch(`/api/admin/inspection/${inspection.id}/pdf`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await response.json()
+    setReportData(data)
+    setSelectedInspection(inspection)
+    setShowDetailDialog(true)
+  }
+
+  const downloadPDF = () => {
+    if (!reportData) return
+    
+    // Create PDF content
+    let pdfContent = `
+DENETIM RAPORU
+=================
+
+Rapor Tarihi: ${reportData.generatedAt}
+Hazırlayan: ${reportData.company}
+
+KURUM BİLGİLERİ:
+- Okul Adı: ${reportData.inspection.schoolName}
+- İl/İlçe: ${reportData.inspection.city.name} / ${reportData.inspection.district}
+- Paket: ${reportData.inspection.package.name}
+
+DENETIM SONUÇLARI:
+==================
+
+`
+    
+    reportData.inspection.answers.forEach((answer, index) => {
+      pdfContent += `
+${index + 1}. ${answer.question.category.name}
+--------------------------------------
+Soru: ${answer.question.question}
+Cevap: ${answer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
+${answer.note ? `Not: ${answer.note}` : ''}
+${answer.question.penaltyType ? `Ceza Gerekliliği: ${answer.question.penaltyType}` : ''}
+
+`
+    })
+
+    pdfContent += `
+
+HUKUKI UYARI:
+=============
+Bu rapor yalnızca öneri niteliğindedir ve kurumun yasal sorumluluklarını ortadan kaldırmaz.
+Raporun yasal bir değeri bulunmamaktadır. Sadece bilgilendirme amaçlıdır.
+
+SARIMEŞE DANIŞMANLIK
+Eğitim ve Bilişim Teknolojileri Sanayi Ticaret Ltd. Şti.
+`
+
+    // Create blob and download
+    const blob = new Blob([pdfContent], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `denetim_raporu_${reportData.inspection.schoolName}_${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    sonnerToast.success('Rapor indirildi')
+  }
 
   return (
     <div>
@@ -1753,35 +2285,142 @@ function InspectionsTab({ token }) {
               <TableHead>Denetçi</TableHead>
               <TableHead>Durum</TableHead>
               <TableHead>Tarih</TableHead>
+              <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {inspections.map(insp => (
               <TableRow key={insp.id}>
-                <TableCell>{insp.schoolName}</TableCell>
+                <TableCell className="font-medium">{insp.schoolName}</TableCell>
                 <TableCell>{insp.city?.name} / {insp.district}</TableCell>
                 <TableCell>{insp.package?.name}</TableCell>
                 <TableCell>{insp.inspector?.name || 'Atanmadı'}</TableCell>
                 <TableCell>
                   {insp.status === 'completed' ? (
-                    <span className="text-green-600">Tamamlandı</span>
+                    <Badge className="bg-green-100 text-green-800">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Tamamlandı
+                    </Badge>
                   ) : insp.status === 'in_progress' ? (
-                    <span className="text-blue-600">Devam Ediyor</span>
+                    <Badge variant="default">Devam Ediyor</Badge>
                   ) : (
-                    <span className="text-yellow-600">Bekliyor</span>
+                    <Badge variant="secondary">Bekliyor</Badge>
                   )}
                 </TableCell>
-                <TableCell>{new Date(insp.createdAt).toLocaleDateString('tr-TR')}</TableCell>
+                <TableCell>{new Date(insp.createdAt).toLocaleDateString('tr-TR', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })}</TableCell>
+                <TableCell className="text-right space-x-2">
+                  {insp.status === 'completed' && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => viewReport(insp)}>
+                        <Eye className="h-3 w-3 mr-1" /> Rapor
+                      </Button>
+                      <Button size="sm" variant="default" onClick={() => viewReport(insp)}>
+                        <Download className="h-3 w-3 mr-1" /> PDF
+                      </Button>
+                    </>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Denetim Raporu</DialogTitle>
+            <DialogDescription>
+              {selectedInspection?.schoolName} - {reportData?.generatedAt}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {reportData && (
+            <div className="space-y-6">
+              <div className="bg-muted p-4 rounded-lg">
+                <h3 className="font-semibold mb-2">Kurum Bilgileri</h3>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>Okul: {reportData.inspection.schoolName}</div>
+                  <div>İl/İlçe: {reportData.inspection.city.name} / {reportData.inspection.district}</div>
+                  <div>Paket: {reportData.inspection.package.name}</div>
+                  <div>Rapor Tarihi: {reportData.generatedAt}</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-4">Denetim Sonuçları (Uygun Değil ve Göreceli)</h3>
+                {reportData.inspection.answers.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">
+                    Tüm kontroller uygun bulunmuştur. 🎉
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {reportData.inspection.answers.map((answer, index) => (
+                      <Card key={answer.id}>
+                        <CardContent className="pt-4">
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <Badge variant="outline" className="mb-2">
+                                  {answer.question.category.name}
+                                </Badge>
+                                <h4 className="font-semibold">{index + 1}. {answer.question.question}</h4>
+                              </div>
+                              <Badge className={answer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
+                                {answer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
+                              </Badge>
+                            </div>
+                            {answer.note && (
+                              <div className="bg-muted p-3 rounded text-sm">
+                                <strong>Not:</strong> {answer.note}
+                              </div>
+                            )}
+                            {answer.question.penaltyType && (
+                              <div className="bg-red-50 border border-red-200 p-3 rounded text-sm">
+                                <strong className="text-red-900">⚠️ Ceza Gerekliliği:</strong>
+                                <span className="text-red-800 ml-2">{answer.question.penaltyType}</span>
+                              </div>
+                            )}
+                            {answer.photos && JSON.parse(answer.photos || '[]').length > 0 && (
+                              <div className="grid grid-cols-3 gap-2 mt-2">
+                                {JSON.parse(answer.photos).map((photo, i) => (
+                                  <img key={i} src={photo} alt={`Foto ${i + 1}`} className="w-full aspect-square object-cover rounded" />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm">
+                <strong>⚠️ HUKUKI UYARI:</strong>
+                <p className="mt-2">
+                  Bu rapor yalnızca öneri niteliğindedir ve kurumun yasal sorumluluklarını ortadan kaldırmaz.
+                  Raporun yasal bir değeri bulunmamaktadır. Sadece bilgilendirme amaçlıdır.
+                </p>
+                <p className="mt-2 font-semibold">
+                  {reportData.company}
+                </p>
+              </div>
+
+              <Button onClick={downloadPDF} className="w-full" size="lg">
+                <Download className="h-4 w-4 mr-2" />
+                PDF Olarak İndir
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-// Inspector Panel (Basitleştirilmiş)
 // Inspector Panel - Tablet Denetim Sistemi
 function InspectorPanel({ token, user }) {
   const [view, setView] = useState('list') // list, detail, inspection
