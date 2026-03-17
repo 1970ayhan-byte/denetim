@@ -2548,89 +2548,234 @@ function InspectionAssignmentTab({ token }) {
   )
 }
 
-// Inspections Tab - Raporlama ve PDF İndirme
+// Inspections Tab - Tam Raporlama, Düzenleme ve PDF
 function InspectionsTab({ token }) {
   const [inspections, setInspections] = useState([])
   const [selectedInspection, setSelectedInspection] = useState(null)
   const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [reportData, setReportData] = useState(null)
+  const [fullReportData, setFullReportData] = useState(null)
+  const [editingAnswer, setEditingAnswer] = useState(null)
+  const [editNote, setEditNote] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [generatingPDF, setGeneratingPDF] = useState(false)
+  const [filterStatus, setFilterStatus] = useState('all')
 
   useEffect(() => {
-    fetch('/api/admin/inspections', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setInspections)
+    loadInspections()
   }, [])
 
+  const loadInspections = async () => {
+    const response = await fetch('/api/admin/inspections', { 
+      headers: { Authorization: `Bearer ${token}` } 
+    })
+    setInspections(await response.json())
+  }
+
   const viewReport = async (inspection) => {
-    const response = await fetch(`/api/admin/inspection/${inspection.id}/pdf`, {
+    const response = await fetch(`/api/admin/inspection/${inspection.id}/report`, {
       headers: { Authorization: `Bearer ${token}` }
     })
     const data = await response.json()
-    setReportData(data)
+    setFullReportData(data)
     setSelectedInspection(inspection)
     setShowDetailDialog(true)
   }
 
-  const downloadPDF = () => {
-    if (!reportData) return
-    
-    // Create PDF content
-    let pdfContent = `
-DENETIM RAPORU
-=================
-
-Rapor Tarihi: ${reportData.generatedAt}
-Hazırlayan: ${reportData.company}
-
-KURUM BİLGİLERİ:
-- Okul Adı: ${reportData.inspection.schoolName}
-- İl/İlçe: ${reportData.inspection.city.name} / ${reportData.inspection.district}
-- Paket: ${reportData.inspection.package.name}
-
-DENETIM SONUÇLARI:
-==================
-
-`
-    
-    reportData.inspection.answers.forEach((answer, index) => {
-      pdfContent += `
-${index + 1}. ${answer.question.category.name}
---------------------------------------
-Soru: ${answer.question.question}
-Cevap: ${answer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
-${answer.note ? `Not: ${answer.note}` : ''}
-${answer.question.penaltyType ? `Ceza Gerekliliği: ${answer.question.penaltyType}` : ''}
-
-`
-    })
-
-    pdfContent += `
-
-HUKUKI UYARI:
-=============
-Bu rapor yalnızca öneri niteliğindedir ve kurumun yasal sorumluluklarını ortadan kaldırmaz.
-Raporun yasal bir değeri bulunmamaktadır. Sadece bilgilendirme amaçlıdır.
-
-SARIMEŞE DANIŞMANLIK
-Eğitim ve Bilişim Teknolojileri Sanayi Ticaret Ltd. Şti.
-`
-
-    // Create blob and download
-    const blob = new Blob([pdfContent], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `denetim_raporu_${reportData.inspection.schoolName}_${new Date().toISOString().split('T')[0]}.txt`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    
-    sonnerToast.success('Rapor indirildi')
+  const startEditNote = (answer) => {
+    setEditingAnswer(answer)
+    setEditNote(answer.note || '')
+    setShowEditDialog(true)
   }
+
+  const saveNote = async () => {
+    if (!editingAnswer) return
+    setSavingNote(true)
+    try {
+      await fetch(`/api/admin/inspection/${selectedInspection.id}/answer/${editingAnswer.id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ note: editNote })
+      })
+      
+      // Update local state
+      setFullReportData(prev => ({
+        ...prev,
+        inspection: {
+          ...prev.inspection,
+          answers: prev.inspection.answers.map(a => 
+            a.id === editingAnswer.id ? { ...a, note: editNote } : a
+          )
+        }
+      }))
+      
+      sonnerToast.success('Not güncellendi')
+      setShowEditDialog(false)
+      setEditingAnswer(null)
+    } catch (error) {
+      sonnerToast.error('Güncelleme hatası')
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  const downloadPDF = async () => {
+    if (!fullReportData) return
+    setGeneratingPDF(true)
+    
+    try {
+      // Dynamic import for jsPDF
+      const { jsPDF } = await import('jspdf')
+      const { default: autoTable } = await import('jspdf-autotable')
+      
+      const doc = new jsPDF()
+      const inspection = fullReportData.inspection
+      
+      // Title
+      doc.setFontSize(18)
+      doc.setFont(undefined, 'bold')
+      doc.text('DENETIM RAPORU', 105, 20, { align: 'center' })
+      
+      // Company info
+      doc.setFontSize(10)
+      doc.setFont(undefined, 'normal')
+      doc.text('SARIMESE DANISMANLIK', 105, 28, { align: 'center' })
+      doc.text('Egitim ve Bilisim Teknolojileri Sanayi Ticaret Ltd. Sti.', 105, 33, { align: 'center' })
+      
+      // Horizontal line
+      doc.setLineWidth(0.5)
+      doc.line(20, 38, 190, 38)
+      
+      // School info
+      doc.setFontSize(12)
+      doc.setFont(undefined, 'bold')
+      doc.text('KURUM BILGILERI', 20, 48)
+      
+      doc.setFontSize(10)
+      doc.setFont(undefined, 'normal')
+      const schoolInfo = [
+        ['Okul Adi:', inspection.schoolName],
+        ['Il/Ilce:', `${inspection.city?.name || ''} / ${inspection.district || ''}`],
+        ['Paket:', inspection.package?.name || ''],
+        ['Denetci:', inspection.inspector?.name || 'Belirtilmemis'],
+        ['Rapor Tarihi:', fullReportData.generatedAt],
+        ['Tamamlanma Tarihi:', inspection.completedAt ? new Date(inspection.completedAt).toLocaleDateString('tr-TR') : '-']
+      ]
+      
+      let yPos = 55
+      schoolInfo.forEach(([label, value]) => {
+        doc.setFont(undefined, 'bold')
+        doc.text(label, 20, yPos)
+        doc.setFont(undefined, 'normal')
+        doc.text(value, 60, yPos)
+        yPos += 6
+      })
+      
+      // Summary stats
+      const allAnswers = inspection.answers || []
+      const uygunCount = allAnswers.filter(a => a.answer === 'uygun').length
+      const uygunDegilCount = allAnswers.filter(a => a.answer === 'uygun_degil').length
+      const goreceli = allAnswers.filter(a => a.answer === 'goreceli').length
+      
+      yPos += 5
+      doc.setFont(undefined, 'bold')
+      doc.text('DENETIM OZETI', 20, yPos)
+      yPos += 6
+      doc.setFont(undefined, 'normal')
+      doc.text(`Toplam Kontrol: ${allAnswers.length}`, 20, yPos)
+      doc.text(`Uygun: ${uygunCount}`, 70, yPos)
+      doc.text(`Uygun Degil: ${uygunDegilCount}`, 110, yPos)
+      doc.text(`Goreceli: ${goreceli}`, 155, yPos)
+      
+      // Issues table
+      const issueAnswers = allAnswers.filter(a => a.answer !== 'uygun')
+      
+      if (issueAnswers.length > 0) {
+        yPos += 12
+        doc.setFont(undefined, 'bold')
+        doc.text('EKSIKLIKLER VE ONERILER', 20, yPos)
+        
+        const tableData = issueAnswers.map((answer, index) => [
+          (index + 1).toString(),
+          answer.question?.category?.name || '',
+          answer.question?.question?.substring(0, 50) + (answer.question?.question?.length > 50 ? '...' : '') || '',
+          answer.answer === 'uygun_degil' ? 'UYGUN DEGIL' : 'GORECELI',
+          answer.note?.substring(0, 30) + (answer.note?.length > 30 ? '...' : '') || '-',
+          answer.question?.penaltyType || '-'
+        ])
+        
+        autoTable(doc, {
+          startY: yPos + 5,
+          head: [['#', 'Kategori', 'Soru', 'Sonuc', 'Not', 'Ceza']],
+          body: tableData,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+          columnStyles: {
+            0: { cellWidth: 8 },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 55 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 35 },
+            5: { cellWidth: 25 }
+          }
+        })
+      }
+      
+      // Legal disclaimer
+      const finalY = doc.lastAutoTable?.finalY || yPos + 20
+      if (finalY < 250) {
+        doc.setFontSize(9)
+        doc.setFont(undefined, 'bold')
+        doc.text('HUKUKI UYARI:', 20, finalY + 15)
+        doc.setFont(undefined, 'normal')
+        doc.setFontSize(8)
+        const disclaimer = 'Bu rapor yalnizca oneri niteligindedir ve kurumun yasal sorumluluklarini ortadan kaldirmaz. Raporun yasal bir degeri bulunmamaktadir. Sadece bilgilendirme amaçlidir.'
+        const splitDisclaimer = doc.splitTextToSize(disclaimer, 170)
+        doc.text(splitDisclaimer, 20, finalY + 21)
+      }
+      
+      // Footer
+      doc.setFontSize(8)
+      doc.text(`Olusturulma: ${new Date().toLocaleString('tr-TR')}`, 20, 285)
+      doc.text('SARIMESE DANISMANLIK', 190, 285, { align: 'right' })
+      
+      // Save
+      doc.save(`denetim_raporu_${inspection.schoolName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`)
+      sonnerToast.success('PDF rapor indirildi')
+    } catch (error) {
+      console.error('PDF Error:', error)
+      sonnerToast.error('PDF oluşturma hatası')
+    } finally {
+      setGeneratingPDF(false)
+    }
+  }
+
+  const filteredInspections = filterStatus === 'all' 
+    ? inspections 
+    : inspections.filter(i => i.status === filterStatus)
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Denetimler ({inspections.length})</h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">Denetimler ({inspections.length})</h2>
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Durum Filtrele" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tümü</SelectItem>
+            <SelectItem value="pending">Bekleyenler</SelectItem>
+            <SelectItem value="in_progress">Devam Edenler</SelectItem>
+            <SelectItem value="completed">Tamamlananlar</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
       <Card>
         <Table>
           <TableHeader>
@@ -2638,110 +2783,168 @@ Eğitim ve Bilişim Teknolojileri Sanayi Ticaret Ltd. Şti.
               <TableHead>Okul</TableHead>
               <TableHead>İl/İlçe</TableHead>
               <TableHead>Paket</TableHead>
-              <TableHead>Denetçi</TableHead>
+              <TableHead>Danışman</TableHead>
               <TableHead>Durum</TableHead>
               <TableHead>Tarih</TableHead>
               <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {inspections.map(insp => (
-              <TableRow key={insp.id}>
-                <TableCell className="font-medium">{insp.schoolName}</TableCell>
-                <TableCell>{insp.city?.name} / {insp.district}</TableCell>
-                <TableCell>{insp.package?.name}</TableCell>
-                <TableCell>{insp.inspector?.name || 'Atanmadı'}</TableCell>
-                <TableCell>
-                  {insp.status === 'completed' ? (
-                    <Badge className="bg-green-100 text-green-800">
-                      <CheckCircle2 className="h-3 w-3 mr-1" /> Tamamlandı
-                    </Badge>
-                  ) : insp.status === 'in_progress' ? (
-                    <Badge variant="default">Devam Ediyor</Badge>
-                  ) : (
-                    <Badge variant="secondary">Bekliyor</Badge>
-                  )}
-                </TableCell>
-                <TableCell>{new Date(insp.createdAt).toLocaleDateString('tr-TR', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                })}</TableCell>
-                <TableCell className="text-right space-x-2">
-                  {insp.status === 'completed' && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => viewReport(insp)}>
-                        <Eye className="h-3 w-3 mr-1" /> Rapor
-                      </Button>
-                      <Button size="sm" variant="default" onClick={() => viewReport(insp)}>
-                        <Download className="h-3 w-3 mr-1" /> PDF
-                      </Button>
-                    </>
-                  )}
+            {filteredInspections.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  {filterStatus === 'all' ? 'Henüz denetim yok' : 'Bu durumda denetim yok'}
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredInspections.map(insp => (
+                <TableRow key={insp.id}>
+                  <TableCell className="font-medium">{insp.schoolName}</TableCell>
+                  <TableCell>{insp.city?.name} / {insp.district}</TableCell>
+                  <TableCell>{insp.package?.name}</TableCell>
+                  <TableCell>{insp.inspector?.name || <span className="text-muted-foreground">Atanmadı</span>}</TableCell>
+                  <TableCell>
+                    {insp.status === 'completed' ? (
+                      <Badge className="bg-green-100 text-green-800">
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Tamamlandı
+                      </Badge>
+                    ) : insp.status === 'in_progress' ? (
+                      <Badge variant="default" className="bg-blue-100 text-blue-800">
+                        <Clock className="h-3 w-3 mr-1" /> Devam Ediyor
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        <AlertCircle className="h-3 w-3 mr-1" /> Bekliyor
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>{new Date(insp.createdAt).toLocaleDateString('tr-TR', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}</TableCell>
+                  <TableCell className="text-right space-x-2">
+                    {insp.status === 'completed' ? (
+                      <Button size="sm" variant="default" onClick={() => viewReport(insp)}>
+                        <Eye className="h-3 w-3 mr-1" /> Rapor
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled>
+                        <Clock className="h-3 w-3 mr-1" /> Bekliyor
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </Card>
 
+      {/* Report Detail Dialog */}
       <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Denetim Raporu</DialogTitle>
+            <DialogTitle className="text-xl">Denetim Raporu</DialogTitle>
             <DialogDescription>
-              {selectedInspection?.schoolName} - {reportData?.generatedAt}
+              {selectedInspection?.schoolName} - {fullReportData?.generatedAt}
             </DialogDescription>
           </DialogHeader>
           
-          {reportData && (
+          {fullReportData && (
             <div className="space-y-6">
+              {/* School Info */}
               <div className="bg-muted p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Kurum Bilgileri</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>Okul: {reportData.inspection.schoolName}</div>
-                  <div>İl/İlçe: {reportData.inspection.city.name} / {reportData.inspection.district}</div>
-                  <div>Paket: {reportData.inspection.package.name}</div>
-                  <div>Rapor Tarihi: {reportData.generatedAt}</div>
+                <h3 className="font-semibold mb-3">Kurum Bilgileri</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div><span className="text-muted-foreground">Okul:</span> <strong>{fullReportData.inspection.schoolName}</strong></div>
+                  <div><span className="text-muted-foreground">İl/İlçe:</span> <strong>{fullReportData.inspection.city?.name} / {fullReportData.inspection.district}</strong></div>
+                  <div><span className="text-muted-foreground">Paket:</span> <strong>{fullReportData.inspection.package?.name}</strong></div>
+                  <div><span className="text-muted-foreground">Danışman:</span> <strong>{fullReportData.inspection.inspector?.name || 'Belirtilmemiş'}</strong></div>
+                  <div><span className="text-muted-foreground">Rapor Tarihi:</span> <strong>{fullReportData.generatedAt}</strong></div>
+                  <div><span className="text-muted-foreground">Tamamlanma:</span> <strong>{fullReportData.inspection.completedAt ? new Date(fullReportData.inspection.completedAt).toLocaleDateString('tr-TR') : '-'}</strong></div>
                 </div>
               </div>
 
+              {/* Summary Stats */}
+              <div className="grid grid-cols-4 gap-4">
+                <Card className="p-4 text-center">
+                  <div className="text-2xl font-bold">{fullReportData.inspection.answers?.length || 0}</div>
+                  <div className="text-sm text-muted-foreground">Toplam Kontrol</div>
+                </Card>
+                <Card className="p-4 text-center bg-green-50">
+                  <div className="text-2xl font-bold text-green-700">
+                    {fullReportData.inspection.answers?.filter(a => a.answer === 'uygun').length || 0}
+                  </div>
+                  <div className="text-sm text-green-600">Uygun</div>
+                </Card>
+                <Card className="p-4 text-center bg-red-50">
+                  <div className="text-2xl font-bold text-red-700">
+                    {fullReportData.inspection.answers?.filter(a => a.answer === 'uygun_degil').length || 0}
+                  </div>
+                  <div className="text-sm text-red-600">Uygun Değil</div>
+                </Card>
+                <Card className="p-4 text-center bg-yellow-50">
+                  <div className="text-2xl font-bold text-yellow-700">
+                    {fullReportData.inspection.answers?.filter(a => a.answer === 'goreceli').length || 0}
+                  </div>
+                  <div className="text-sm text-yellow-600">Göreceli</div>
+                </Card>
+              </div>
+
+              {/* Issues List */}
               <div>
-                <h3 className="font-semibold mb-4">Denetim Sonuçları (Uygun Değil ve Göreceli)</h3>
-                {reportData.inspection.answers.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-8">
-                    Tüm kontroller uygun bulunmuştur. 🎉
-                  </p>
+                <h3 className="font-semibold mb-4">Eksiklikler ve Öneriler (Uygun Değil + Göreceli)</h3>
+                {fullReportData.inspection.answers?.filter(a => a.answer !== 'uygun').length === 0 ? (
+                  <Card className="p-8 text-center">
+                    <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                    <p className="text-lg font-semibold text-green-700">Tüm kontroller uygun bulunmuştur! 🎉</p>
+                  </Card>
                 ) : (
-                  <div className="space-y-4">
-                    {reportData.inspection.answers.map((answer, index) => (
-                      <Card key={answer.id}>
-                        <CardContent className="pt-4">
-                          <div className="space-y-2">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <Badge variant="outline" className="mb-2">
-                                  {answer.question.category.name}
-                                </Badge>
-                                <h4 className="font-semibold">{index + 1}. {answer.question.question}</h4>
+                  <div className="space-y-3">
+                    {fullReportData.inspection.answers?.filter(a => a.answer !== 'uygun').map((answer, index) => (
+                      <Card key={answer.id} className="overflow-hidden">
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {answer.question?.category?.name}
+                                  </Badge>
+                                  <Badge className={answer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
+                                    {answer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
+                                  </Badge>
+                                </div>
+                                <h4 className="font-medium">{index + 1}. {answer.question?.question}</h4>
                               </div>
-                              <Badge className={answer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
-                                {answer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
-                              </Badge>
+                              <Button size="sm" variant="ghost" onClick={() => startEditNote(answer)}>
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
                             </div>
+                            
+                            {answer.question?.regulationText && (
+                              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-sm">
+                                <strong className="text-blue-900">Yönetmelik:</strong>
+                                <p className="text-blue-800 mt-1">{answer.question.regulationText}</p>
+                              </div>
+                            )}
+                            
                             {answer.note && (
                               <div className="bg-muted p-3 rounded text-sm">
-                                <strong>Not:</strong> {answer.note}
+                                <strong>Danışman Notu:</strong> {answer.note}
                               </div>
                             )}
-                            {answer.question.penaltyType && (
-                              <div className="bg-red-50 border border-red-200 p-3 rounded text-sm">
-                                <strong className="text-red-900">⚠️ Ceza Gerekliliği:</strong>
-                                <span className="text-red-800 ml-2">{answer.question.penaltyType}</span>
+                            
+                            {answer.question?.penaltyType && (
+                              <div className="bg-red-50 border border-red-200 p-3 rounded text-sm flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4 text-red-600" />
+                                <span><strong className="text-red-900">Ceza Gerekliliği:</strong> <span className="text-red-800">{answer.question.penaltyType}</span></span>
                               </div>
                             )}
+                            
                             {answer.photos && JSON.parse(answer.photos || '[]').length > 0 && (
-                              <div className="grid grid-cols-3 gap-2 mt-2">
+                              <div className="grid grid-cols-4 gap-2 mt-2">
                                 {JSON.parse(answer.photos).map((photo, i) => (
                                   <img key={i} src={photo} alt={`Foto ${i + 1}`} className="w-full aspect-square object-cover rounded" />
                                 ))}
@@ -2755,23 +2958,59 @@ Eğitim ve Bilişim Teknolojileri Sanayi Ticaret Ltd. Şti.
                 )}
               </div>
 
+              {/* Legal Disclaimer */}
               <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm">
                 <strong>⚠️ HUKUKI UYARI:</strong>
                 <p className="mt-2">
                   Bu rapor yalnızca öneri niteliğindedir ve kurumun yasal sorumluluklarını ortadan kaldırmaz.
                   Raporun yasal bir değeri bulunmamaktadır. Sadece bilgilendirme amaçlıdır.
                 </p>
-                <p className="mt-2 font-semibold">
-                  {reportData.company}
-                </p>
+                <p className="mt-2 font-semibold">{fullReportData.company}</p>
               </div>
 
-              <Button onClick={downloadPDF} className="w-full" size="lg">
-                <Download className="h-4 w-4 mr-2" />
-                PDF Olarak İndir
-              </Button>
+              {/* Actions */}
+              <div className="flex gap-4">
+                <Button onClick={downloadPDF} className="flex-1" size="lg" disabled={generatingPDF}>
+                  {generatingPDF ? (
+                    <>Oluşturuluyor...</>
+                  ) : (
+                    <><Download className="h-4 w-4 mr-2" /> PDF Olarak İndir</>
+                  )}
+                </Button>
+              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Note Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Notu Düzenle</DialogTitle>
+            <DialogDescription>
+              {editingAnswer?.question?.question?.substring(0, 100)}...
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Danışman Notu</Label>
+              <Textarea 
+                value={editNote}
+                onChange={(e) => setEditNote(e.target.value)}
+                placeholder="Eksiklik hakkında detaylı not yazın..."
+                rows={4}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)} className="flex-1">
+                İptal
+              </Button>
+              <Button onClick={saveNote} disabled={savingNote} className="flex-1">
+                {savingNote ? 'Kaydediliyor...' : 'Kaydet'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -784,6 +784,65 @@ async function handleRoute(request, { params }) {
       }))
     }
     
+    // ============ ADMIN - GET INSPECTION REPORT (FULL) ============
+    
+    if (route.startsWith('/admin/inspection/') && route.endsWith('/report') && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const id = path[2]
+      const inspection = await prisma.inspection.findUnique({
+        where: { id },
+        include: {
+          city: true,
+          package: true,
+          inspector: { select: { name: true, phone: true } },
+          answers: {
+            include: { question: { include: { category: true } } },
+            orderBy: { question: { order: 'asc' } }
+          }
+        }
+      })
+      
+      if (!inspection) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
+      
+      // Get all categories with questions for summary
+      const categories = await prisma.category.findMany({
+        orderBy: { order: 'asc' },
+        include: { questions: { orderBy: { order: 'asc' } } }
+      })
+      
+      return handleCORS(NextResponse.json({
+        inspection,
+        categories,
+        generatedAt: new Date().toLocaleDateString('tr-TR'),
+        company: 'SARIMEŞE DANIŞMANLIK'
+      }))
+    }
+    
+    // ============ ADMIN - UPDATE INSPECTION ANSWER NOTE ============
+    
+    if (route.startsWith('/admin/inspection/') && route.includes('/answer/') && method === 'PUT') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const answerId = path[path.length - 1]
+      const { note } = await request.json()
+      
+      const answer = await prisma.inspectionAnswer.update({
+        where: { id: answerId },
+        data: { note }
+      })
+      
+      return handleCORS(NextResponse.json(answer))
+    }
+    
     // ============ ADMIN - GENERATE PDF REPORT ============
     
     if (route.startsWith('/admin/inspection/') && route.endsWith('/pdf') && method === 'GET') {
@@ -798,6 +857,7 @@ async function handleRoute(request, { params }) {
         include: {
           city: true,
           package: true,
+          inspector: { select: { name: true, phone: true } },
           answers: {
             where: {
               OR: [
@@ -814,7 +874,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
       }
       
-      // Generate PDF content (simplified - in production use puppeteer)
+      // Generate PDF content
       const pdfContent = {
         inspection,
         generatedAt: new Date().toLocaleDateString('tr-TR'),
