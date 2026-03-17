@@ -10,15 +10,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
 import { 
   CheckCircle2, XCircle, AlertCircle, Menu, X, Phone, Mail, MapPin,
   Shield, FileCheck, Building2, BookOpen, ChevronRight, LogOut,
   Users, Package, MapIcon, MessageSquare, CreditCard, ClipboardList,
-  Settings, Plus, Edit2, Trash2, Eye, Download, Camera, Save
+  Settings, Plus, Edit2, Trash2, Eye, Download, Camera, Save, Clock, Zap
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/sonner'
 import { toast as sonnerToast } from 'sonner'
+import { trackFormSubmit, trackWhatsAppClick, trackCTAClick, openWhatsApp, trackPackageView, trackPurchaseIntent } from '@/lib/tracking'
+import WhatsAppButton from '@/components/WhatsAppButton'
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('home')
@@ -120,7 +123,11 @@ export default function App() {
         {currentPage === 'login' && <LoginPage setCurrentPage={setCurrentPage} setToken={setToken} setUser={setUser} />}
         {currentPage === 'admin' && user?.role === 'admin' && <AdminPanel token={token} />}
         {currentPage === 'inspector' && user?.role === 'inspector' && <InspectorPanel token={token} user={user} />}
+        {currentPage === 'landing' && <LandingPage />}
       </main>
+
+      {/* WhatsApp Floating Button */}
+      {!user && <WhatsAppButton />}
 
       {/* Footer */}
       <footer className="bg-muted mt-20">
