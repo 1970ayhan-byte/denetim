@@ -209,7 +209,12 @@ function HomePage({ setCurrentPage }) {
         <div className="container mx-auto px-4">
           <h2 className="text-4xl font-bold text-center mb-12">Neden Sarımeşe Danışmanlık?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card>
+            <Card className="hover:shadow-xl transition-shadow">
+              <img 
+                src="https://images.unsplash.com/photo-1562564055-71e051d33c19" 
+                alt="Profesyonel Danışmanlık"
+                className="w-full h-48 object-cover rounded-t-lg"
+              />
               <CardHeader>
                 <Shield className="h-12 w-12 text-primary mb-4" />
                 <CardTitle>Mevzuata Uygun</CardTitle>
@@ -218,7 +223,12 @@ function HomePage({ setCurrentPage }) {
                 <p className="text-muted-foreground">MEB, Yangın ve Tarım yönetmeliklerine tam uyum</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-xl transition-shadow">
+              <img 
+                src="https://images.unsplash.com/photo-1633526543814-9718c8922b7a" 
+                alt="Detaylı Planlama"
+                className="w-full h-48 object-cover rounded-t-lg"
+              />
               <CardHeader>
                 <FileCheck className="h-12 w-12 text-primary mb-4" />
                 <CardTitle>Eksiksiz Denetim</CardTitle>
@@ -227,7 +237,12 @@ function HomePage({ setCurrentPage }) {
                 <p className="text-muted-foreground">Evrak, fiziki şartlar ve finans kontrolü</p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="hover:shadow-xl transition-shadow">
+              <img 
+                src="https://images.unsplash.com/photo-1638262052640-82e94d64664a" 
+                alt="Güvenilir Hizmet"
+                className="w-full h-48 object-cover rounded-t-lg"
+              />
               <CardHeader>
                 <BookOpen className="h-12 w-12 text-primary mb-4" />
                 <CardTitle>Detaylı Raporlama</CardTitle>
@@ -240,14 +255,66 @@ function HomePage({ setCurrentPage }) {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Güvenli Ödeme Bölümü - Yeni */}
       <section className="bg-muted py-16">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl font-bold mb-6">Güvenli ve Kolay Ödeme</h2>
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <CreditCard className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold mb-1">ParamPOS Güvencesi</h3>
+                    <p className="text-sm text-muted-foreground">SSL sertifikalı güvenli ödeme altyapısı</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold mb-1">6 Taksit İmkanı</h3>
+                    <p className="text-sm text-muted-foreground">Tüm kredi kartlarına 6 taksit seçeneği</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Shield className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold mb-1">3D Secure</h3>
+                    <p className="text-sm text-muted-foreground">Ekstra güvenlik katmanı ile koruma</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <img 
+                src="https://images.unsplash.com/photo-1563013544-824ae1b704d3" 
+                alt="Güvenli Ödeme"
+                className="rounded-lg shadow-lg w-full"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="bg-primary text-white py-16">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl font-bold mb-4">Kurumunuzu Denetime Hazırlayalım</h2>
-          <p className="text-lg text-muted-foreground mb-8">Hemen iletişime geçin, ücretsiz ön değerlendirme alın</p>
-          <Button size="lg" onClick={() => setCurrentPage('contact')}>
-            Bilgi Almak İstiyorum <ChevronRight className="ml-2" />
-          </Button>
+          <p className="text-lg mb-8 opacity-90">Hemen iletişime geçin, ücretsiz ön değerlendirme alın</p>
+          <div className="flex flex-wrap gap-4 justify-center">
+            <Button size="lg" variant="secondary" onClick={() => setCurrentPage('contact')}>
+              Bilgi Almak İstiyorum <ChevronRight className="ml-2" />
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => setCurrentPage('packages')} className="border-white text-white hover:bg-white/10 hover:text-white">
+              Paketleri İncele
+            </Button>
+          </div>
         </div>
       </section>
     </div>
@@ -324,6 +391,11 @@ function PackagesPage({ setCurrentPage }) {
   useEffect(() => {
     fetch('/api/packages').then(r => r.json()).then(setPackages)
     fetch('/api/cities').then(r => r.json()).then(setCities)
+  }, [])
+  
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0)
   }, [])
 
   const selectPackage = (pkg) => {
@@ -493,13 +565,27 @@ function PackagesPage({ setCurrentPage }) {
 
   return (
     <div className="py-20">
-      <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-bold mb-8 text-center">Denetim Paketleri</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="container mx-auto px-4 max-w-6xl">
+        
+        {/* Taksit Banner - Dikkat Çekici */}
+        <div className="mb-8 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg p-6 text-center shadow-lg sticky top-20 z-40">
+          <div className="flex items-center justify-center gap-3 text-xl md:text-2xl font-bold">
+            <CreditCard className="h-8 w-8" />
+            <span>Kredi Kartına 6 Taksit - Tüm Paketlerde Geçerli</span>
+          </div>
+        </div>
+
+        <h1 className="text-4xl font-bold mb-4 text-center">Denetim Paketleri</h1>
+        <p className="text-center text-lg text-muted-foreground mb-12">
+          Kurumunuza uygun paketi seçin, güvenli ödeme yapın.
+        </p>
+        
+        {/* Paketler Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
           {packages.map(pkg => {
             const features = typeof pkg.features === 'string' ? JSON.parse(pkg.features || '[]') : pkg.features
             return (
-              <Card key={pkg.id} className="flex flex-col">
+              <Card key={pkg.id} className="flex flex-col hover:shadow-xl transition-shadow">
                 <CardHeader>
                   <CardTitle className="text-2xl">{pkg.name}</CardTitle>
                   <div className="text-3xl font-bold text-primary">
@@ -519,7 +605,7 @@ function PackagesPage({ setCurrentPage }) {
                   </div>
                 </CardContent>
                 <CardContent>
-                  <Button className="w-full" onClick={() => selectPackage(pkg)}>
+                  <Button className="w-full" size="lg" onClick={() => selectPackage(pkg)}>
                     Satın Al
                   </Button>
                 </CardContent>
@@ -527,6 +613,69 @@ function PackagesPage({ setCurrentPage }) {
             )
           })}
         </div>
+
+        {/* Ödeme Sonrası Süreç - Yeni Bölüm */}
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 md:p-12 mb-16">
+          <h2 className="text-3xl font-bold text-center mb-12">Ödeme Sonrası Süreç</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {[
+              {
+                icon: Package,
+                title: '1. Paket Seçimi',
+                desc: 'İhtiyacınıza uygun paketi seçin'
+              },
+              {
+                icon: CreditCard,
+                title: '2. Güvenli Ödeme',
+                desc: 'ParamPOS ile kredi kartı / 6 taksit'
+              },
+              {
+                icon: Phone,
+                title: '3. Randevu',
+                desc: 'Yetkilimiz sizi arayarak denetim günü planlar'
+              },
+              {
+                icon: Users,
+                title: '4. Uzman Ziyareti',
+                desc: 'Ekibimiz kurumunuzu ziyaret eder'
+              }
+            ].map((step, i) => (
+              <Card key={i} className="text-center bg-white hover:shadow-lg transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="mb-4 flex justify-center">
+                    <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                      <step.icon className="h-8 w-8 text-primary" />
+                    </div>
+                  </div>
+                  <h3 className="font-bold text-lg mb-2">{step.title}</h3>
+                  <p className="text-sm text-muted-foreground">{step.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA - Kararsız Müşteriler İçin */}
+        <Card className="bg-gradient-to-r from-primary to-blue-600 text-white border-0">
+          <CardContent className="py-12 text-center">
+            <h3 className="text-2xl font-bold mb-4">
+              Hangi paketi seçeceğinize karar veremediniz mi?
+            </h3>
+            <p className="text-lg mb-6 opacity-90">
+              Uzmanlarımız size en uygun paketi önerebilir
+            </p>
+            <Button 
+              size="lg" 
+              variant="secondary"
+              onClick={() => setCurrentPage('contact')}
+              className="text-lg px-8"
+            >
+              <Phone className="mr-2 h-5 w-5" />
+              Bilgi İstiyorum - Uzman Sizi Arasın
+            </Button>
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   )
@@ -592,9 +741,9 @@ function ContactPage() {
     <div className="py-20">
       <div className="container mx-auto px-4">
         <h1 className="text-4xl font-bold mb-8">İletişim</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
           <div>
-            <Card>
+            <Card className="mb-6">
               <CardHeader>
                 <CardTitle>İletişim Bilgileri</CardTitle>
               </CardHeader>
@@ -613,6 +762,27 @@ function ContactPage() {
                     <p>0554 958 43 20</p>
                     <p>0216 606 12 78</p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            {/* Google Maps */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Konum</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative w-full h-64 rounded-lg overflow-hidden">
+                  <iframe
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3011.9773458739987!2d29.079815076396985!3d40.97757387135804!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14cac7d441c0e0e1%3A0x3e7d8f5c5f5f5f5f!2zS296eWF0YcSfxLEsIEJheWFyIENkLiBObzo4NiwgMzQ3NDIgS2FkxLFrw7Z5L8Swc3RhbmJ1bA!5e0!3m2!1str!2str!4v1704963600000!5m2!1str!2str"
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    allowFullScreen=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    className="absolute inset-0"
+                  ></iframe>
                 </div>
               </CardContent>
             </Card>
