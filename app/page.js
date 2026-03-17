@@ -159,6 +159,14 @@ export default function App() {
 
 // Home Page
 function HomePage({ setCurrentPage }) {
+  const [latestNews, setLatestNews] = useState([])
+  
+  useEffect(() => {
+    fetch('/api/news').then(r => r.json()).then(data => {
+      setLatestNews(data.slice(0, 3))
+    })
+  }, [])
+  
   return (
     <div>
       {/* Hero Section */}
@@ -170,7 +178,7 @@ function HomePage({ setCurrentPage }) {
           alt="Okul Öncesi Denetim"
         />
         <div className="container mx-auto px-4 z-20 text-white">
-          <div className="max-w-3xl">
+          <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
               Denetime Hazır mısınız?
             </h1>
@@ -184,12 +192,12 @@ function HomePage({ setCurrentPage }) {
             <p className="text-2xl font-semibold mb-8">
               Denetime yakalanan değil, denetime hazır olan kurum olun.
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Button size="lg" onClick={() => setCurrentPage('packages')} className="bg-white text-primary hover:bg-white/90">
+            <div className="flex flex-wrap gap-4 justify-center">
+              <Button size="lg" onClick={() => setCurrentPage('packages')} className="bg-white text-primary hover:bg-white/90 font-semibold text-base px-8">
                 Denetleme Yaptırmak İstiyorum
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setCurrentPage('contact')} className="border-white text-white hover:bg-white/10">
-                Bize Ulaşın
+              <Button size="lg" onClick={() => setCurrentPage('contact')} className="bg-white text-primary hover:bg-white/90 font-semibold text-base px-8">
+                Denetleme Yaptırmak İstiyorum
               </Button>
             </div>
           </div>
@@ -204,48 +212,39 @@ function HomePage({ setCurrentPage }) {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Features - Görseller Kaldırıldı */}
       <section className="py-20">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 max-w-5xl">
           <h2 className="text-4xl font-bold text-center mb-12">Neden Sarımeşe Danışmanlık?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card className="hover:shadow-xl transition-shadow">
-              <img 
-                src="https://images.unsplash.com/photo-1562564055-71e051d33c19" 
-                alt="Profesyonel Danışmanlık"
-                className="w-full h-48 object-cover rounded-t-lg"
-              />
+            <Card className="hover:shadow-xl transition-shadow text-center">
               <CardHeader>
-                <Shield className="h-12 w-12 text-primary mb-4" />
-                <CardTitle>Mevzuata Uygun</CardTitle>
+                <div className="flex justify-center mb-4">
+                  <Shield className="h-16 w-16 text-primary" />
+                </div>
+                <CardTitle className="text-xl">Mevzuata Uygun</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">MEB, Yangın ve Tarım yönetmeliklerine tam uyum</p>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-xl transition-shadow">
-              <img 
-                src="https://images.unsplash.com/photo-1633526543814-9718c8922b7a" 
-                alt="Detaylı Planlama"
-                className="w-full h-48 object-cover rounded-t-lg"
-              />
+            <Card className="hover:shadow-xl transition-shadow text-center">
               <CardHeader>
-                <FileCheck className="h-12 w-12 text-primary mb-4" />
-                <CardTitle>Eksiksiz Denetim</CardTitle>
+                <div className="flex justify-center mb-4">
+                  <FileCheck className="h-16 w-16 text-primary" />
+                </div>
+                <CardTitle className="text-xl">Eksiksiz Denetim</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">Evrak, fiziki şartlar ve finans kontrolü</p>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-xl transition-shadow">
-              <img 
-                src="https://images.unsplash.com/photo-1638262052640-82e94d64664a" 
-                alt="Güvenilir Hizmet"
-                className="w-full h-48 object-cover rounded-t-lg"
-              />
+            <Card className="hover:shadow-xl transition-shadow text-center">
               <CardHeader>
-                <BookOpen className="h-12 w-12 text-primary mb-4" />
-                <CardTitle>Detaylı Raporlama</CardTitle>
+                <div className="flex justify-center mb-4">
+                  <BookOpen className="h-16 w-16 text-primary" />
+                </div>
+                <CardTitle className="text-xl">Detaylı Raporlama</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">Eksiklikler ve çözüm önerileri ile kapsamlı rapor</p>
@@ -255,9 +254,9 @@ function HomePage({ setCurrentPage }) {
         </div>
       </section>
 
-      {/* Güvenli Ödeme Bölümü - Yeni */}
+      {/* Güvenli Ödeme Bölümü */}
       <section className="bg-muted py-16">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-4 max-w-6xl">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div>
               <h2 className="text-3xl font-bold mb-6">Güvenli ve Kolay Ödeme</h2>
@@ -302,17 +301,69 @@ function HomePage({ setCurrentPage }) {
         </div>
       </section>
 
+      {/* Bizden Haberler - Footer Üstü */}
+      {latestNews.length > 0 && (
+        <section className="py-16 bg-background">
+          <div className="container mx-auto px-4 max-w-6xl">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-bold mb-4">Bizden Haberler</h2>
+              <p className="text-muted-foreground">Son gelişmeler ve duyurular</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {latestNews.map(news => (
+                <Card key={news.id} className="hover:shadow-xl transition-shadow">
+                  {news.imageUrl && (
+                    <img 
+                      src={news.imageUrl} 
+                      alt={news.title}
+                      className="w-full h-48 object-cover rounded-t-lg"
+                    />
+                  )}
+                  <CardHeader>
+                    <CardTitle className="text-lg line-clamp-2">{news.title}</CardTitle>
+                    <CardDescription>
+                      {new Date(news.createdAt).toLocaleDateString('tr-TR')}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-3 mb-4">
+                      {news.content}
+                    </p>
+                    <Button 
+                      variant="link" 
+                      className="p-0 h-auto"
+                      onClick={() => setCurrentPage('news')}
+                    >
+                      Devamını Oku <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <div className="text-center mt-8">
+              <Button variant="outline" onClick={() => setCurrentPage('news')}>
+                Tüm Haberleri Gör
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* CTA Section */}
       <section className="bg-primary text-white py-16">
-        <div className="container mx-auto px-4 text-center">
+        <div className="container mx-auto px-4 text-center max-w-4xl">
           <h2 className="text-3xl font-bold mb-4">Kurumunuzu Denetime Hazırlayalım</h2>
           <p className="text-lg mb-8 opacity-90">Hemen iletişime geçin, ücretsiz ön değerlendirme alın</p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <Button size="lg" variant="secondary" onClick={() => setCurrentPage('contact')}>
+            <Button size="lg" className="bg-white text-primary hover:bg-white/90 font-semibold" onClick={() => setCurrentPage('contact')}>
               Bilgi Almak İstiyorum <ChevronRight className="ml-2" />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => setCurrentPage('packages')} className="border-white text-white hover:bg-white/10 hover:text-white">
-              Paketleri İncele
+            <Button 
+              size="lg" 
+              className="bg-white/10 text-white border-2 border-white hover:bg-white hover:text-primary font-semibold transition-all" 
+              onClick={() => setCurrentPage('packages')}
+            >
+              Bilgi Almak İstiyorum
             </Button>
           </div>
         </div>
@@ -325,18 +376,18 @@ function HomePage({ setCurrentPage }) {
 function ServicesPage({ setCurrentPage }) {
   return (
     <div className="py-20">
-      <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-bold mb-8">Hizmetlerimiz</h1>
+      <div className="container mx-auto px-4 max-w-6xl">
+        <h1 className="text-4xl font-bold mb-8 text-center">Hizmetlerimiz</h1>
         
-        <div className="prose max-w-4xl mb-12">
-          <p className="text-lg">
+        <div className="max-w-3xl mx-auto mb-12 text-center">
+          <p className="text-lg text-muted-foreground">
             Anaokullarının denetimlerde karşılaşabileceği riskleri önceden tespit ediyor,
             kurumunuzu MEB, Yangın ve Tarım denetimlerine hazırlıyoruz.
           </p>
         </div>
 
-        <h2 className="text-2xl font-bold mb-6">Denetlenen Alanlar</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <h2 className="text-2xl font-bold mb-6 text-center">Denetlenen Alanlar</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {[
             { icon: FileCheck, title: 'MEB Evrakları', desc: 'Tüm resmi evrakların kontrolü' },
             { icon: Building2, title: 'MEBBİS Kontrolü', desc: 'Sistem kayıtlarının doğruluğu' },
@@ -345,9 +396,11 @@ function ServicesPage({ setCurrentPage }) {
             { icon: AlertCircle, title: 'Yangın Yönetmeliği', desc: 'Yangın güvenlik sistemleri' },
             { icon: CheckCircle2, title: 'Tarım ve Hijyen', desc: 'Gıda ve sağlık kuralları' }
           ].map((item, i) => (
-            <Card key={i}>
+            <Card key={i} className="text-center hover:shadow-lg transition-shadow">
               <CardHeader>
-                <item.icon className="h-10 w-10 text-primary mb-2" />
+                <div className="flex justify-center mb-2">
+                  <item.icon className="h-12 w-12 text-primary" />
+                </div>
                 <CardTitle>{item.title}</CardTitle>
               </CardHeader>
               <CardContent>
@@ -357,12 +410,12 @@ function ServicesPage({ setCurrentPage }) {
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 justify-center">
           <Button size="lg" onClick={() => setCurrentPage('packages')}>
             Paketleri İncele
           </Button>
-          <Button size="lg" variant="outline" onClick={() => setCurrentPage('contact')}>
-            Bilgi Almak İstiyorum
+          <Button size="lg" onClick={() => setCurrentPage('contact')}>
+            Denetleme Yaptırmak İstiyorum
           </Button>
         </div>
       </div>
@@ -684,23 +737,33 @@ function PackagesPage({ setCurrentPage }) {
 // News Page
 function NewsPage() {
   const [news, setNews] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 15
 
   useEffect(() => {
     fetch('/api/news').then(r => r.json()).then(setNews)
   }, [])
 
+  // Pagination calculation
+  const totalPages = Math.ceil(news.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentNews = news.slice(startIndex, endIndex)
+
   return (
     <div className="py-20">
-      <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-bold mb-8">Bizden Haberler</h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {news.map(item => (
-            <Card key={item.id}>
+      <div className="container mx-auto px-4 max-w-6xl">
+        <h1 className="text-4xl font-bold mb-8 text-center">Bizden Haberler</h1>
+        <p className="text-center text-muted-foreground mb-12">Son gelişmeler ve duyurular</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          {currentNews.map(item => (
+            <Card key={item.id} className="hover:shadow-lg transition-shadow">
               {item.imageUrl && (
                 <img src={item.imageUrl} alt={item.title} className="w-full h-48 object-cover rounded-t-lg" />
               )}
               <CardHeader>
-                <CardTitle className="text-xl">{item.title}</CardTitle>
+                <CardTitle className="text-xl line-clamp-2">{item.title}</CardTitle>
                 <CardDescription>
                   {new Date(item.createdAt).toLocaleDateString('tr-TR')}
                 </CardDescription>
@@ -711,6 +774,35 @@ function NewsPage() {
             </Card>
           ))}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Önceki
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+              <Button
+                key={page}
+                variant={currentPage === page ? "default" : "outline"}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Sonraki
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -739,8 +831,8 @@ function ContactPage() {
 
   return (
     <div className="py-20">
-      <div className="container mx-auto px-4">
-        <h1 className="text-4xl font-bold mb-8">İletişim</h1>
+      <div className="container mx-auto px-4 max-w-6xl">
+        <h1 className="text-4xl font-bold mb-12 text-center">İletişim</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
           <div>
             <Card className="mb-6">
