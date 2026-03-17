@@ -28,6 +28,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [token, setToken] = useState(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [selectedNews, setSelectedNews] = useState(null)
 
   // Load user from localStorage
   useEffect(() => {
@@ -118,7 +119,8 @@ export default function App() {
         {currentPage === 'home' && <HomePage setCurrentPage={setCurrentPage} />}
         {currentPage === 'services' && <ServicesPage setCurrentPage={setCurrentPage} />}
         {currentPage === 'packages' && <PackagesPage setCurrentPage={setCurrentPage} />}
-        {currentPage === 'news' && <NewsPage />}
+        {currentPage === 'news' && <NewsPage setCurrentPage={setCurrentPage} setSelectedNews={setSelectedNews} />}
+        {currentPage === 'news-detail' && selectedNews && <NewsDetailPage news={selectedNews} setCurrentPage={setCurrentPage} />}
         {currentPage === 'contact' && <ContactPage />}
         {currentPage === 'login' && <LoginPage setCurrentPage={setCurrentPage} setToken={setToken} setUser={setUser} />}
         {currentPage === 'admin' && user?.role === 'admin' && <AdminPanel token={token} />}
@@ -200,11 +202,17 @@ function HomePage({ setCurrentPage }) {
               Denetime yakalanan değil, denetime hazır olan kurum olun.
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Button size="lg" onClick={() => setCurrentPage('packages')} className="bg-white text-primary hover:bg-white/90 font-semibold text-base px-8">
+              <Button size="lg" onClick={() => {
+                trackCTAClick('Denetleme Yaptırmak İstiyorum', 'hero')
+                setCurrentPage('packages')
+              }} className="bg-white text-primary hover:bg-white/90 font-semibold text-base px-8">
                 Denetleme Yaptırmak İstiyorum
               </Button>
-              <Button size="lg" onClick={() => setCurrentPage('contact')} className="bg-white text-primary hover:bg-white/90 font-semibold text-base px-8">
-                Denetleme Yaptırmak İstiyorum
+              <Button size="lg" onClick={() => {
+                trackCTAClick('Bilgi Almak İstiyorum', 'hero')
+                setCurrentPage('contact')
+              }} className="bg-white text-primary hover:bg-white/90 font-semibold text-base px-8">
+                Bilgi Almak İstiyorum
               </Button>
             </div>
           </div>
@@ -362,15 +370,21 @@ function HomePage({ setCurrentPage }) {
           <h2 className="text-3xl font-bold mb-4">Kurumunuzu Denetime Hazırlayalım</h2>
           <p className="text-lg mb-8 opacity-90">Hemen iletişime geçin, ücretsiz ön değerlendirme alın</p>
           <div className="flex flex-wrap gap-4 justify-center">
-            <Button size="lg" className="bg-white text-primary hover:bg-white/90 font-semibold" onClick={() => setCurrentPage('contact')}>
+            <Button size="lg" className="bg-white text-primary hover:bg-white/90 font-semibold" onClick={() => {
+              trackCTAClick('Bilgi Almak İstiyorum', 'cta_section')
+              setCurrentPage('contact')
+            }}>
               Bilgi Almak İstiyorum <ChevronRight className="ml-2" />
             </Button>
             <Button 
               size="lg" 
               className="bg-white/10 text-white border-2 border-white hover:bg-white hover:text-primary font-semibold transition-all" 
-              onClick={() => setCurrentPage('packages')}
+              onClick={() => {
+                trackCTAClick('Paketleri İncele', 'cta_section')
+                setCurrentPage('packages')
+              }}
             >
-              Bilgi Almak İstiyorum
+              Paketleri İncele
             </Button>
           </div>
         </div>
@@ -742,9 +756,10 @@ function PackagesPage({ setCurrentPage }) {
 }
 
 // News Page
-function NewsPage() {
+// News Page
+function NewsPage({ setCurrentPage, setSelectedNews }) {
   const [news, setNews] = useState([])
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPageNum, setCurrentPageNum] = useState(1)
   const itemsPerPage = 15
 
   useEffect(() => {
@@ -753,7 +768,7 @@ function NewsPage() {
 
   // Pagination calculation
   const totalPages = Math.ceil(news.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
+  const startIndex = (currentPageNum - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   const currentNews = news.slice(startIndex, endIndex)
 
@@ -765,7 +780,10 @@ function NewsPage() {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           {currentNews.map(item => (
-            <Card key={item.id} className="hover:shadow-lg transition-shadow">
+            <Card key={item.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => {
+              setSelectedNews(item)
+              setCurrentPage('news-detail')
+            }}>
               {item.imageUrl && (
                 <img src={item.imageUrl} alt={item.title} className="w-full h-48 object-cover rounded-t-lg" />
               )}
@@ -777,6 +795,9 @@ function NewsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground line-clamp-3">{item.content}</p>
+                <Button variant="link" className="p-0 mt-2">
+                  Devamını Oku <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </CardContent>
             </Card>
           ))}
@@ -787,29 +808,81 @@ function NewsPage() {
           <div className="flex justify-center gap-2">
             <Button
               variant="outline"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              onClick={() => setCurrentPageNum(p => Math.max(1, p - 1))}
+              disabled={currentPageNum === 1}
             >
               Önceki
             </Button>
             {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
               <Button
                 key={page}
-                variant={currentPage === page ? "default" : "outline"}
-                onClick={() => setCurrentPage(page)}
+                variant={currentPageNum === page ? "default" : "outline"}
+                onClick={() => setCurrentPageNum(page)}
               >
                 {page}
               </Button>
             ))}
             <Button
               variant="outline"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPageNum(p => Math.min(totalPages, p + 1))}
+              disabled={currentPageNum === totalPages}
             >
               Sonraki
             </Button>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// News Detail Page
+function NewsDetailPage({ news, setCurrentPage }) {
+  return (
+    <div className="py-20">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <Button variant="ghost" onClick={() => setCurrentPage('news')} className="mb-6">
+          ← Geri Dön
+        </Button>
+        
+        {news.imageUrl && (
+          <img 
+            src={news.imageUrl} 
+            alt={news.title}
+            className="w-full h-96 object-cover rounded-lg mb-8"
+          />
+        )}
+        
+        <h1 className="text-4xl font-bold mb-4">{news.title}</h1>
+        
+        <div className="flex items-center gap-4 text-muted-foreground mb-8">
+          <span>{new Date(news.createdAt).toLocaleDateString('tr-TR', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}</span>
+        </div>
+        
+        <div className="prose prose-lg max-w-none">
+          <p className="whitespace-pre-wrap">{news.content}</p>
+        </div>
+        
+        {news.keywords && (
+          <div className="mt-8 pt-8 border-t">
+            <h3 className="font-semibold mb-2">Etiketler:</h3>
+            <div className="flex flex-wrap gap-2">
+              {news.keywords.split(',').map((keyword, i) => (
+                <Badge key={i} variant="secondary">{keyword.trim()}</Badge>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="mt-12 text-center">
+          <Button size="lg" onClick={() => setCurrentPage('contact')}>
+            Bilgi Almak İstiyorum
+          </Button>
+        </div>
       </div>
     </div>
   )
