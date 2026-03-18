@@ -675,10 +675,21 @@ async function handleRoute(request, { params }) {
       }
       
       const { inspectionId } = await request.json()
-      const inspection = await prisma.inspection.update({
+      
+      // Get current inspection with position info
+      let inspection = await prisma.inspection.findUnique({
         where: { id: inspectionId },
-        data: { status: 'in_progress' }
+        include: { answers: true }
       })
+      
+      // Only update status if it's pending
+      if (inspection.status === 'pending') {
+        inspection = await prisma.inspection.update({
+          where: { id: inspectionId },
+          data: { status: 'in_progress' },
+          include: { answers: true }
+        })
+      }
       
       // Get all questions for inspection
       const categories = await prisma.category.findMany({
@@ -686,7 +697,25 @@ async function handleRoute(request, { params }) {
         include: { questions: { orderBy: { order: 'asc' } } }
       })
       
-      return handleCORS(NextResponse.json({ inspection, categories }))
+      // Build answers map
+      const answersMap = {}
+      inspection.answers.forEach(a => {
+        answersMap[a.questionId] = {
+          answer: a.answer,
+          note: a.note || '',
+          photos: a.photos ? JSON.parse(a.photos) : []
+        }
+      })
+      
+      return handleCORS(NextResponse.json({ 
+        inspection: {
+          ...inspection,
+          currentCategoryIndex: inspection.currentCategoryIndex || 0,
+          currentQuestionIndex: inspection.currentQuestionIndex || 0
+        },
+        categories,
+        answersMap
+      }))
     }
     
     // ============ INSPECTOR - SAVE ANSWER ============
@@ -697,7 +726,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const { inspectionId, questionId, answer, note, photos } = await request.json()
+      const { inspectionId, questionId, answer, note, photos, currentCategoryIndex, currentQuestionIndex } = await request.json()
       
       // Check if answer exists
       const existing = await prisma.inspectionAnswer.findFirst({
@@ -722,6 +751,17 @@ async function handleRoute(request, { params }) {
             answer,
             note: note || '',
             photos: photos ? JSON.stringify(photos) : ''
+          }
+        })
+      }
+      
+      // Update inspection progress (currentQuestionIndex, currentCategoryIndex)
+      if (currentCategoryIndex !== undefined && currentQuestionIndex !== undefined) {
+        await prisma.inspection.update({
+          where: { id: inspectionId },
+          data: { 
+            currentCategoryIndex,
+            currentQuestionIndex
           }
         })
       }
@@ -780,6 +820,30 @@ async function handleRoute(request, { params }) {
       
       return handleCORS(NextResponse.json({ 
         message: 'Denetim tamamlandı',
+        inspection
+      }))
+    }
+    
+    // ============ INSPECTOR - SAVE PROGRESS (Ara Ver) ============
+    
+    if (route === '/inspector/inspection/progress' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const { inspectionId, currentCategoryIndex, currentQuestionIndex } = await request.json()
+      
+      const inspection = await prisma.inspection.update({
+        where: { id: inspectionId },
+        data: { 
+          currentCategoryIndex,
+          currentQuestionIndex
+        }
+      })
+      
+      return handleCORS(NextResponse.json({ 
+        message: 'İlerleme kaydedildi',
         inspection
       }))
     }

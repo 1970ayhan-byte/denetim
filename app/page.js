@@ -3389,29 +3389,26 @@ function InspectorPanel({ token, user }) {
       setSelectedInspection(data.inspection)
       setCategories(data.categories)
       
-      // If resuming, load existing answers
-      if (isResume && inspection.status === 'in_progress') {
-        const answersResponse = await fetch(`/api/inspector/inspection/${inspection.id}/answers`, {
-          headers: { Authorization: `Bearer ${token}` }
+      // Set answers from response
+      setAnswers(data.answersMap || {})
+      
+      // Resume from saved position
+      if (isResume && data.inspection.status === 'in_progress') {
+        const savedCatIndex = data.inspection.currentCategoryIndex || 0
+        const savedQIndex = data.inspection.currentQuestionIndex || 0
+        setCurrentCategoryIndex(savedCatIndex)
+        setResumePosition({
+          categoryIndex: savedCatIndex,
+          questionIndex: savedQIndex
         })
-        const answersData = await answersResponse.json()
-        setAnswers(answersData.answers || {})
-        
-        // Find last answered position
-        if (answersData.lastAnsweredQuestionId) {
-          const position = findQuestionPosition(data.categories, answersData.lastAnsweredQuestionId)
-          if (position) {
-            setResumePosition(position)
-          }
-        }
+        sonnerToast.success(`Kaldığınız yerden devam ediliyor (Kategori ${savedCatIndex + 1}, Soru ${savedQIndex + 1})`)
       } else {
-        setAnswers({})
+        setCurrentCategoryIndex(0)
         setResumePosition(null)
+        sonnerToast.success('Denetim başlatıldı')
       }
       
-      setCurrentCategoryIndex(0)
       setView('inspection')
-      sonnerToast.success(isResume ? 'Denetime devam ediliyor' : 'Denetim başlatıldı')
     } catch (error) {
       sonnerToast.error('Hata oluştu')
     }
@@ -3454,7 +3451,28 @@ function InspectorPanel({ token, user }) {
       
       sonnerToast.success('Cevap kaydedildi')
     } catch (error) {
+      console.error('Save error:', error)
       sonnerToast.error('Kaydetme hatası')
+    }
+  }
+  
+  // Save progress helper
+  const saveProgress = async (catIndex, qIndex) => {
+    try {
+      await fetch('/api/inspector/inspection/progress', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          inspectionId: selectedInspection.id,
+          currentCategoryIndex: catIndex,
+          currentQuestionIndex: qIndex
+        })
+      })
+    } catch (error) {
+      console.error('Progress save error:', error)
     }
   }
 
@@ -3614,24 +3632,34 @@ function InspectionFlow({
   const [showFinishDialog, setShowFinishDialog] = useState(false)
 
   const currentCategory = categories[currentCategoryIndex]
-  const currentQuestion = currentCategory?.questions[currentQuestionIndex]
-  const totalQuestions = currentCategory?.questions.length || 0
+  const currentQuestion = currentCategory?.questions?.[currentQuestionIndex]
+  const totalQuestions = currentCategory?.questions?.length || 0
   const isLastQuestion = currentQuestionIndex === totalQuestions - 1
   const isLastCategory = currentCategoryIndex === categories.length - 1
+
+  // Skip categories with no questions
+  useEffect(() => {
+    if (currentCategory && currentCategory.questions?.length === 0) {
+      // Find next category with questions
+      let nextCatIndex = currentCategoryIndex + 1
+      while (nextCatIndex < categories.length && (categories[nextCatIndex]?.questions?.length || 0) === 0) {
+        nextCatIndex++
+      }
+      
+      if (nextCatIndex < categories.length) {
+        setCurrentCategoryIndex(nextCatIndex)
+        setCurrentQuestionIndex(0)
+      } else {
+        // No more categories with questions - show finish dialog
+        setShowFinishDialog(true)
+      }
+    }
+  }, [currentCategoryIndex, categories])
 
   // Resume from last position
   useEffect(() => {
     if (resumePosition) {
-      setCurrentCategoryIndex(resumePosition.categoryIndex)
-      // Go to next question after last answered
-      const nextQIdx = resumePosition.questionIndex + 1
-      const catQuestions = categories[resumePosition.categoryIndex]?.questions?.length || 0
-      if (nextQIdx < catQuestions) {
-        setCurrentQuestionIndex(nextQIdx)
-      } else if (resumePosition.categoryIndex < categories.length - 1) {
-        setCurrentCategoryIndex(resumePosition.categoryIndex + 1)
-        setCurrentQuestionIndex(0)
-      }
+      setCurrentQuestionIndex(resumePosition.questionIndex)
     }
   }, [resumePosition])
 
@@ -3644,17 +3672,21 @@ function InspectionFlow({
     }
   }, [currentQuestion, answers])
 
-  // Autosave when answer changes
+  // Autosave when answer changes (debounced)
   useEffect(() => {
     if (currentQuestion && localAnswer) {
       const timer = setTimeout(async () => {
         setAutoSaving(true)
-        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+        try {
+          await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+        } catch (e) {
+          console.error('Autosave failed:', e)
+        }
         setAutoSaving(false)
-      }, 1000)
+      }, 2000) // 2 second debounce
       return () => clearTimeout(timer)
     }
-  }, [localAnswer, localNote])
+  }, [localAnswer])
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -3688,18 +3720,52 @@ function InspectionFlow({
 
     await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
 
+    let nextCatIndex = currentCategoryIndex
+    let nextQIndex = currentQuestionIndex + 1
+
     if (isLastQuestion) {
       if (isLastCategory) {
         // Son soru, son kategori - "Denetimi Bitir" dialogu göster
         setShowFinishDialog(true)
+        return
       } else {
-        // Sonraki kategoriye geç
-        setCurrentCategoryIndex(currentCategoryIndex + 1)
+        // Find next category with questions
+        nextCatIndex = currentCategoryIndex + 1
+        while (nextCatIndex < categories.length && (categories[nextCatIndex]?.questions?.length || 0) === 0) {
+          nextCatIndex++
+        }
+        
+        if (nextCatIndex >= categories.length) {
+          // No more categories with questions
+          setShowFinishDialog(true)
+          return
+        }
+        
+        nextQIndex = 0
+        setCurrentCategoryIndex(nextCatIndex)
         setCurrentQuestionIndex(0)
       }
     } else {
       // Sonraki soruya geç
-      setCurrentQuestionIndex(currentQuestionIndex + 1)
+      setCurrentQuestionIndex(nextQIndex)
+    }
+
+    // Save progress
+    try {
+      await fetch('/api/inspector/inspection/progress', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          inspectionId: inspection.id,
+          currentCategoryIndex: nextCatIndex,
+          currentQuestionIndex: nextQIndex
+        })
+      })
+    } catch (e) {
+      console.error('Progress save failed:', e)
     }
 
     // Reset local state
@@ -3724,11 +3790,31 @@ function InspectionFlow({
 
   // ARA VER - Kaydet ve ana sayfaya dön
   const handlePause = async () => {
-    if (localAnswer && currentQuestion) {
-      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+    try {
+      // Save current answer if exists
+      if (localAnswer && currentQuestion) {
+        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+      }
+      
+      // Save progress position
+      await fetch('/api/inspector/inspection/progress', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          inspectionId: inspection.id,
+          currentCategoryIndex,
+          currentQuestionIndex
+        })
+      })
+      
+      sonnerToast.success('Denetim kaydedildi. Kaldığınız yerden devam edebilirsiniz.')
+      onCancel()
+    } catch (error) {
+      sonnerToast.error('Kaydetme hatası')
     }
-    sonnerToast.success('Denetim kaydedildi. Kaldığınız yerden devam edebilirsiniz.')
-    onCancel()
   }
 
   if (!currentQuestion) return null

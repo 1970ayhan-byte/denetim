@@ -76,20 +76,22 @@ model City {
 
 // Denetimler
 model Inspection {
-  id            String      @id @default(uuid())
-  schoolName    String
-  cityId        String
-  district      String      @default("")
-  packageId     String
-  paymentId     String?
-  inspectorId   String?
-  status        String      @default("pending") // pending, in_progress, completed
-  schoolContact String      @default("")
-  schoolPhone   String      @default("")
-  schoolEmail   String      @default("")
-  capacity      String      @default("")
-  createdAt     DateTime    @default(now())
-  completedAt   DateTime?
+  id                    String      @id @default(uuid())
+  schoolName            String
+  cityId                String
+  district              String      @default("")
+  packageId             String
+  paymentId             String?
+  inspectorId           String?
+  status                String      @default("pending") // pending, in_progress, completed
+  schoolContact         String      @default("")
+  schoolPhone           String      @default("")
+  schoolEmail           String      @default("")
+  capacity              String      @default("")
+  currentCategoryIndex  Int         @default(0)
+  currentQuestionIndex  Int         @default(0)
+  createdAt             DateTime    @default(now())
+  completedAt           DateTime?
   
   city          City        @relation(fields: [cityId], references: [id])
   package       Package     @relation(fields: [packageId], references: [id])
