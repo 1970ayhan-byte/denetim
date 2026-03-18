@@ -15,7 +15,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Menu, X, Phone, Mail, MapPin,
   Shield, FileCheck, Building2, BookOpen, ChevronRight, LogOut,
   Users, Package, MapIcon, MessageSquare, CreditCard, ClipboardList,
-  Settings, Plus, Edit2, Trash2, Eye, Download, Camera, Save, Clock, Zap
+  Settings, Plus, Edit2, Trash2, Eye, Download, Camera, Save, Clock, Zap, Pause
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/sonner'
@@ -1180,12 +1180,10 @@ function DashboardTab({ token }) {
                 <th>#</th>
                 <th>Okul Adı</th>
                 <th>Yetkili</th>
+                <th>Telefon</th>
                 <th>İl</th>
                 <th>İlçe</th>
-                <th>Telefon</th>
-                <th>Paket</th>
-                <th>Durum</th>
-                <th>Tarih</th>
+                <th>Denetim Tarihi</th>
               </tr>
             </thead>
             <tbody>
@@ -1193,12 +1191,10 @@ function DashboardTab({ token }) {
                 <tr>
                   <td>${i + 1}</td>
                   <td>${insp.schoolName}</td>
-                  <td>${insp.contactName || '-'}</td>
+                  <td>${insp.schoolContact || '-'}</td>
+                  <td>${insp.schoolPhone || '-'}</td>
                   <td>${insp.city?.name || '-'}</td>
                   <td>${insp.district || '-'}</td>
-                  <td>${insp.phone || '-'}</td>
-                  <td>${insp.package?.name || '-'}</td>
-                  <td>${insp.status === 'completed' ? 'Tamamlandı' : insp.status === 'in_progress' ? 'Devam Ediyor' : 'Bekliyor'}</td>
                   <td>${new Date(insp.createdAt).toLocaleDateString('tr-TR')}</td>
                 </tr>
               `).join('')}
@@ -2716,6 +2712,11 @@ function InspectionAssignmentTab({ token }) {
       sonnerToast.error('Okul adı, il, paket ve danışman seçimi zorunludur')
       return
     }
+    
+    if (!formData.schoolContact || !formData.schoolPhone) {
+      sonnerToast.error('Yetkili adı ve telefon zorunludur')
+      return
+    }
 
     // Create mock payment and inspection
     const paymentResponse = await fetch('/api/payment/initiate', {
@@ -2831,28 +2832,40 @@ function InspectionAssignmentTab({ token }) {
             </Select>
           </div>
           <div className="border-t pt-4">
-            <h4 className="font-semibold mb-3">Yetkili Bilgileri (Opsiyonel)</h4>
-            <div className="space-y-3">
-              <Input 
-                value={formData.schoolContact}
-                onChange={(e) => setFormData({...formData, schoolContact: e.target.value})}
-                placeholder="Yetkili Ad Soyad"
-              />
-              <Input 
-                value={formData.schoolPhone}
-                onChange={(e) => setFormData({...formData, schoolPhone: e.target.value})}
-                placeholder="Telefon"
-              />
-              <Input 
-                value={formData.schoolEmail}
-                onChange={(e) => setFormData({...formData, schoolEmail: e.target.value})}
-                placeholder="E-posta"
-              />
-              <Input 
-                value={formData.capacity}
-                onChange={(e) => setFormData({...formData, capacity: e.target.value})}
-                placeholder="Kontenjan"
-              />
+            <h4 className="font-semibold mb-3">Yetkili Bilgileri *</h4>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Yetkili Ad Soyad *</Label>
+                <Input 
+                  value={formData.schoolContact}
+                  onChange={(e) => setFormData({...formData, schoolContact: e.target.value})}
+                  placeholder="Örn: Ayşe Yılmaz"
+                />
+              </div>
+              <div>
+                <Label>Telefon *</Label>
+                <Input 
+                  value={formData.schoolPhone}
+                  onChange={(e) => setFormData({...formData, schoolPhone: e.target.value})}
+                  placeholder="05xxxxxxxxx"
+                />
+              </div>
+              <div>
+                <Label>E-posta</Label>
+                <Input 
+                  value={formData.schoolEmail}
+                  onChange={(e) => setFormData({...formData, schoolEmail: e.target.value})}
+                  placeholder="E-posta"
+                />
+              </div>
+              <div>
+                <Label>Kontenjan</Label>
+                <Input 
+                  value={formData.capacity}
+                  onChange={(e) => setFormData({...formData, capacity: e.target.value})}
+                  placeholder="Örn: 50"
+                />
+              </div>
             </div>
           </div>
           <Button onClick={handleAssign} className="w-full" size="lg">
@@ -3709,6 +3722,15 @@ function InspectionFlow({
     setShowFinishDialog(false)
   }
 
+  // ARA VER - Kaydet ve ana sayfaya dön
+  const handlePause = async () => {
+    if (localAnswer && currentQuestion) {
+      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+    }
+    sonnerToast.success('Denetim kaydedildi. Kaldığınız yerden devam edebilirsiniz.')
+    onCancel()
+  }
+
   if (!currentQuestion) return null
 
   const progress = ((currentCategoryIndex * 100) + ((currentQuestionIndex + 1) / totalQuestions * 100)) / categories.length
@@ -3731,6 +3753,10 @@ function InspectionFlow({
               {autoSaving && (
                 <span className="text-xs text-green-600 animate-pulse">💾 Kaydediliyor...</span>
               )}
+              <Button variant="outline" size="sm" onClick={handlePause} className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                <Pause className="h-4 w-4 mr-1" />
+                Ara Ver
+              </Button>
               <Button variant="ghost" size="sm" onClick={onCancel}>
                 <X className="h-4 w-4" />
               </Button>

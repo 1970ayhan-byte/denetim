@@ -786,7 +786,7 @@ async function handleRoute(request, { params }) {
     
     // ============ INSPECTOR - GET EXISTING ANSWERS (for resume) ============
     
-    if (route.startsWith('/inspector/inspection/') && route.endsWith('/answers') && method === 'GET') {
+    if (path[0] === 'inspector' && path[1] === 'inspection' && path[3] === 'answers' && method === 'GET') {
       const authUser = getAuthUser(request)
       if (!authUser || authUser.role !== 'inspector') {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
@@ -795,7 +795,8 @@ async function handleRoute(request, { params }) {
       const inspectionId = path[2]
       const answers = await prisma.inspectionAnswer.findMany({
         where: { inspectionId },
-        include: { question: true }
+        include: { question: true },
+        orderBy: { createdAt: 'asc' }
       })
       
       // Convert to map format
