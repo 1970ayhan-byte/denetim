@@ -56,24 +56,25 @@ export default function App() {
       {/* Navigation */}
       <nav className="border-b bg-white sticky top-0 z-50">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <button onClick={() => setCurrentPage('home')} className="text-xl font-bold text-primary">
-                SARIMEŞE DANIŞMANLIK
-              </button>
-              
-              {!user && (
-                <div className="hidden md:flex space-x-6">
-                  <button onClick={() => setCurrentPage('home')} className="text-sm hover:text-primary">Anasayfa</button>
-                  <button onClick={() => setCurrentPage('services')} className="text-sm hover:text-primary">Hizmetlerimiz</button>
-                  <button onClick={() => setCurrentPage('packages')} className="text-sm hover:text-primary">Paketler</button>
-                  <button onClick={() => setCurrentPage('news')} className="text-sm hover:text-primary">Bizden Haberler</button>
-                  <button onClick={() => setCurrentPage('contact')} className="text-sm hover:text-primary">İletişim</button>
-                </div>
-              )}
-            </div>
+          <div className="flex items-center justify-center h-16">
+            {/* Logo - Sol */}
+            <button onClick={() => setCurrentPage('home')} className="text-xl font-bold text-primary absolute left-4 md:static md:mr-8">
+              SARIMEŞE DANIŞMANLIK
+            </button>
             
-            <div className="flex items-center space-x-4">
+            {/* Ortalanmış Menü */}
+            {!user && (
+              <div className="hidden md:flex items-center justify-center space-x-8 flex-1">
+                <button onClick={() => setCurrentPage('home')} className="text-sm hover:text-primary">Anasayfa</button>
+                <button onClick={() => setCurrentPage('services')} className="text-sm hover:text-primary">Hizmetlerimiz</button>
+                <button onClick={() => setCurrentPage('packages')} className="text-sm hover:text-primary">Paketler</button>
+                <button onClick={() => setCurrentPage('news')} className="text-sm hover:text-primary">Bizden Haberler</button>
+                <button onClick={() => setCurrentPage('contact')} className="text-sm hover:text-primary">İletişim</button>
+              </div>
+            )}
+            
+            {/* Sağ Taraf Butonlar */}
+            <div className="flex items-center space-x-4 absolute right-4 md:static">
               {user ? (
                 <>
                   <span className="text-sm hidden md:inline">{user.name} ({user.role === 'admin' ? 'Admin' : 'Denetçi'})</span>
@@ -134,21 +135,21 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-muted mt-20">
         <div className="container mx-auto px-4 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto text-center md:text-left">
+            <div className="flex flex-col items-center md:items-start">
               <h3 className="font-bold text-lg mb-4">SARIMEŞE DANIŞMANLIK</h3>
               <p className="text-sm text-muted-foreground">EĞİTİM VE BİLİŞİM TEKNOLOJİLERİ SANAYİ TİCARET LTD ŞTİ</p>
               <p className="text-sm text-muted-foreground mt-2">17 yıllık MEB danışmanlık tecrübesi</p>
             </div>
-            <div>
+            <div className="flex flex-col items-center md:items-start">
               <h3 className="font-bold text-lg mb-4">İletişim</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> 0554 958 43 20</div>
-                <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> 0216 606 12 78</div>
-                <div className="flex items-center gap-2"><MapPin className="h-4 w-4" /> KOZYATAĞI MAH. BAYAR CAD. NO:86 KADIKÖY / İSTANBUL</div>
+                <div className="flex items-center justify-center md:justify-start gap-2"><Phone className="h-4 w-4" /> 0554 958 43 20</div>
+                <div className="flex items-center justify-center md:justify-start gap-2"><Phone className="h-4 w-4" /> 0216 606 12 78</div>
+                <div className="flex items-center justify-center md:justify-start gap-2"><MapPin className="h-4 w-4" /> KOZYATAĞI MAH. BAYAR CAD. NO:86 KADIKÖY / İSTANBUL</div>
               </div>
             </div>
-            <div>
+            <div className="flex flex-col items-center md:items-start">
               <h3 className="font-bold text-lg mb-4">Hızlı Linkler</h3>
               <div className="space-y-2 text-sm">
                 <button onClick={() => setCurrentPage('services')} className="block hover:text-primary">Hizmetlerimiz</button>
@@ -412,10 +413,10 @@ function ServicesPage({ setCurrentPage }) {
           {[
             { icon: FileCheck, title: 'MEB Evrakları', desc: 'Tüm resmi evrakların kontrolü' },
             { icon: Building2, title: 'MEBBİS Kontrolü', desc: 'Sistem kayıtlarının doğruluğu' },
-            { icon: BookOpen, title: 'e-Okul Kontrolü', desc: 'Öğrenci ve personel kayıtları' },
+            { icon: BookOpen, title: 'e-Okul Kontrolü', desc: 'Öğrenci İşleri ve Personel Kullanıcı Tanımlamaları' },
             { icon: Shield, title: 'Fiziki Şartlar', desc: 'Bina ve donanım uygunluğu' },
-            { icon: AlertCircle, title: 'Yangın Yönetmeliği', desc: 'Yangın güvenlik sistemleri' },
-            { icon: CheckCircle2, title: 'Tarım ve Hijyen', desc: 'Gıda ve sağlık kuralları' }
+            { icon: AlertCircle, title: 'Yangın Yönetmeliği', desc: 'Yangın Önlem Uygunlukları' },
+            { icon: CheckCircle2, title: 'Tarım ve Sağlık', desc: 'Gıda İşletme Uygunluk Denetimi' }
           ].map((item, i) => (
             <Card key={i} className="text-center hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -2623,47 +2624,65 @@ function InspectionsTab({ token }) {
     }
   }
 
+  // Türkçe karakterleri ASCII'ye çevir (jsPDF için)
+  const turkishToAscii = (text) => {
+    if (!text) return ''
+    return text
+      .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+      .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+      .replace(/ş/g, 's').replace(/Ş/g, 'S')
+      .replace(/ı/g, 'i').replace(/İ/g, 'I')
+      .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+      .replace(/ç/g, 'c').replace(/Ç/g, 'C')
+  }
+
   const downloadPDF = async () => {
     if (!fullReportData) return
     setGeneratingPDF(true)
     
     try {
-      // Dynamic import for jsPDF
       const { jsPDF } = await import('jspdf')
       const { default: autoTable } = await import('jspdf-autotable')
       
       const doc = new jsPDF()
       const inspection = fullReportData.inspection
       
-      // Title
-      doc.setFontSize(18)
+      // Tarih formatlama
+      const reportDate = new Date(inspection.completedAt || inspection.createdAt)
+      const formattedDate = reportDate.toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })
+      
+      // ============ BAŞLIK ============
+      doc.setFontSize(20)
       doc.setFont(undefined, 'bold')
-      doc.text('DENETIM RAPORU', 105, 20, { align: 'center' })
+      doc.text(turkishToAscii('DENETİM RAPORU'), 105, 20, { align: 'center' })
       
-      // Company info
-      doc.setFontSize(10)
+      doc.setFontSize(11)
       doc.setFont(undefined, 'normal')
-      doc.text('SARIMESE DANISMANLIK', 105, 28, { align: 'center' })
-      doc.text('Egitim ve Bilisim Teknolojileri Sanayi Ticaret Ltd. Sti.', 105, 33, { align: 'center' })
+      doc.text(turkishToAscii('SARIMEŞE DANIŞMANLIK'), 105, 28, { align: 'center' })
+      doc.setFontSize(9)
+      doc.text(turkishToAscii('Eğitim ve Bilişim Teknolojileri Sanayi Ticaret Ltd. Şti.'), 105, 33, { align: 'center' })
       
-      // Horizontal line
+      // Çizgi
       doc.setLineWidth(0.5)
       doc.line(20, 38, 190, 38)
       
-      // School info
+      // ============ KURUM BİLGİLERİ ============
       doc.setFontSize(12)
       doc.setFont(undefined, 'bold')
-      doc.text('KURUM BILGILERI', 20, 48)
+      doc.text(turkishToAscii('KURUM BİLGİLERİ'), 20, 48)
       
       doc.setFontSize(10)
       doc.setFont(undefined, 'normal')
       const schoolInfo = [
-        ['Okul Adi:', inspection.schoolName],
-        ['Il/Ilce:', `${inspection.city?.name || ''} / ${inspection.district || ''}`],
-        ['Paket:', inspection.package?.name || ''],
-        ['Denetci:', inspection.inspector?.name || 'Belirtilmemis'],
-        ['Rapor Tarihi:', fullReportData.generatedAt],
-        ['Tamamlanma Tarihi:', inspection.completedAt ? new Date(inspection.completedAt).toLocaleDateString('tr-TR') : '-']
+        [turkishToAscii('Okul Adı:'), turkishToAscii(inspection.schoolName)],
+        [turkishToAscii('İl / İlçe:'), turkishToAscii(`${inspection.city?.name || ''} / ${inspection.district || ''}`)],
+        [turkishToAscii('Paket:'), turkishToAscii(inspection.package?.name || '')],
+        [turkishToAscii('Danışman:'), turkishToAscii(inspection.inspector?.name || 'Belirtilmemiş')],
+        [turkishToAscii('Rapor Tarihi:'), turkishToAscii(formattedDate)]
       ]
       
       let yPos = 55
@@ -2671,81 +2690,131 @@ function InspectionsTab({ token }) {
         doc.setFont(undefined, 'bold')
         doc.text(label, 20, yPos)
         doc.setFont(undefined, 'normal')
-        doc.text(value, 60, yPos)
+        doc.text(value || '', 55, yPos)
         yPos += 6
       })
       
-      // Summary stats
-      const allAnswers = inspection.answers || []
-      const uygunCount = allAnswers.filter(a => a.answer === 'uygun').length
-      const uygunDegilCount = allAnswers.filter(a => a.answer === 'uygun_degil').length
-      const goreceli = allAnswers.filter(a => a.answer === 'goreceli').length
+      // ============ GİRİŞ METNİ (HIGHLIGHT BOX) ============
+      yPos += 8
       
-      yPos += 5
-      doc.setFont(undefined, 'bold')
-      doc.text('DENETIM OZETI', 20, yPos)
-      yPos += 6
+      // Arka plan kutusu
+      doc.setFillColor(245, 245, 240) // Açık bej
+      doc.roundedRect(20, yPos - 5, 170, 35, 3, 3, 'F')
+      
+      doc.setFontSize(10)
       doc.setFont(undefined, 'normal')
-      doc.text(`Toplam Kontrol: ${allAnswers.length}`, 20, yPos)
-      doc.text(`Uygun: ${uygunCount}`, 70, yPos)
-      doc.text(`Uygun Degil: ${uygunDegilCount}`, 110, yPos)
-      doc.text(`Goreceli: ${goreceli}`, 155, yPos)
       
-      // Issues table
-      const issueAnswers = allAnswers.filter(a => a.answer !== 'uygun')
+      const yetkiliAdi = inspection.schoolContact || 'kurum yetkilisi'
+      const introText = turkishToAscii(`${formattedDate} tarihinde ${inspection.schoolName} kurumu yetkilisi ${yetkiliAdi} talebi uzerine yapilan ozel denetleme hizmetimiz cercevesinde asagida belirtilen detaylar tespit edilmistir.`)
+      
+      const splitIntro = doc.splitTextToSize(introText, 160)
+      doc.text(splitIntro, 25, yPos + 2)
+      
+      const supportText = turkishToAscii('Eksiklerin en kisa surede giderilmesi noktasinda danismanlik almak isterseniz sizlere destek olmaktan mutluluk duyariz.')
+      const splitSupport = doc.splitTextToSize(supportText, 160)
+      doc.text(splitSupport, 25, yPos + 18)
+      
+      yPos += 40
+      
+      // ============ TESPİT EDİLEN EKSİKLER ============
+      const issueAnswers = (inspection.answers || []).filter(a => a.answer !== 'uygun')
       
       if (issueAnswers.length > 0) {
-        yPos += 12
+        doc.setFontSize(14)
         doc.setFont(undefined, 'bold')
-        doc.text('EKSIKLIKLER VE ONERILER', 20, yPos)
+        doc.text(turkishToAscii('TESPİT EDİLEN EKSİKLER'), 20, yPos)
+        yPos += 8
         
-        const tableData = issueAnswers.map((answer, index) => [
-          (index + 1).toString(),
-          answer.question?.category?.name || '',
-          answer.question?.question?.substring(0, 50) + (answer.question?.question?.length > 50 ? '...' : '') || '',
-          answer.answer === 'uygun_degil' ? 'UYGUN DEGIL' : 'GORECELI',
-          answer.note?.substring(0, 30) + (answer.note?.length > 30 ? '...' : '') || '-',
-          answer.question?.penaltyType || '-'
-        ])
-        
-        autoTable(doc, {
-          startY: yPos + 5,
-          head: [['#', 'Kategori', 'Soru', 'Sonuc', 'Not', 'Ceza']],
-          body: tableData,
-          theme: 'grid',
-          styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-          columnStyles: {
-            0: { cellWidth: 8 },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 55 },
-            3: { cellWidth: 25 },
-            4: { cellWidth: 35 },
-            5: { cellWidth: 25 }
+        issueAnswers.forEach((answer, index) => {
+          // Sayfa kontrolü
+          if (yPos > 250) {
+            doc.addPage()
+            yPos = 20
           }
+          
+          // Kırmızı başlık
+          doc.setFontSize(11)
+          doc.setFont(undefined, 'bold')
+          doc.setTextColor(180, 0, 0) // Kırmızı
+          const questionTitle = turkishToAscii(`${index + 1}. ${answer.question?.question || ''}`)
+          const splitTitle = doc.splitTextToSize(questionTitle, 170)
+          doc.text(splitTitle, 20, yPos)
+          yPos += splitTitle.length * 5 + 2
+          
+          // Normal renk
+          doc.setTextColor(0, 0, 0)
+          
+          // Yönetmelik
+          if (answer.question?.regulationText) {
+            doc.setFontSize(9)
+            doc.setFont(undefined, 'normal')
+            const regText = turkishToAscii(`Yonetmelik: ${answer.question.regulationText}`)
+            const splitReg = doc.splitTextToSize(regText, 165)
+            doc.text(splitReg, 25, yPos)
+            yPos += splitReg.length * 4 + 2
+          }
+          
+          // Not
+          if (answer.note) {
+            doc.setFontSize(9)
+            doc.setFont(undefined, 'italic')
+            const noteText = turkishToAscii(`Not: ${answer.note}`)
+            const splitNote = doc.splitTextToSize(noteText, 165)
+            doc.text(splitNote, 25, yPos)
+            yPos += splitNote.length * 4 + 2
+          }
+          
+          // Ceza
+          if (answer.question?.penaltyType) {
+            doc.setFontSize(9)
+            doc.setFont(undefined, 'bold')
+            doc.text(turkishToAscii(`Ceza: ${answer.question.penaltyType}`), 25, yPos)
+            yPos += 5
+          }
+          
+          yPos += 8 // Maddeler arası boşluk
         })
-      }
-      
-      // Legal disclaimer
-      const finalY = doc.lastAutoTable?.finalY || yPos + 20
-      if (finalY < 250) {
-        doc.setFontSize(9)
+      } else {
+        doc.setFontSize(12)
         doc.setFont(undefined, 'bold')
-        doc.text('HUKUKI UYARI:', 20, finalY + 15)
-        doc.setFont(undefined, 'normal')
-        doc.setFontSize(8)
-        const disclaimer = 'Bu rapor yalnizca oneri niteligindedir ve kurumun yasal sorumluluklarini ortadan kaldirmaz. Raporun yasal bir degeri bulunmamaktadir. Sadece bilgilendirme amaçlidir.'
-        const splitDisclaimer = doc.splitTextToSize(disclaimer, 170)
-        doc.text(splitDisclaimer, 20, finalY + 21)
+        doc.setTextColor(0, 128, 0) // Yeşil
+        doc.text(turkishToAscii('Tum kontroller uygun bulunmustur.'), 20, yPos)
+        doc.setTextColor(0, 0, 0)
+        yPos += 10
       }
       
-      // Footer
-      doc.setFontSize(8)
-      doc.text(`Olusturulma: ${new Date().toLocaleString('tr-TR')}`, 20, 285)
-      doc.text('SARIMESE DANISMANLIK', 190, 285, { align: 'right' })
+      // ============ HUKUKİ UYARI ============
+      // Sayfa kontrolü
+      if (yPos > 250) {
+        doc.addPage()
+        yPos = 20
+      }
       
-      // Save
-      doc.save(`denetim_raporu_${inspection.schoolName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`)
+      yPos += 10
+      doc.setFillColor(255, 250, 230) // Açık sarı
+      doc.roundedRect(20, yPos - 5, 170, 25, 2, 2, 'F')
+      
+      doc.setFontSize(9)
+      doc.setFont(undefined, 'bold')
+      doc.text(turkishToAscii('HUKUKİ UYARI:'), 25, yPos)
+      
+      doc.setFont(undefined, 'normal')
+      doc.setFontSize(8)
+      const disclaimer = turkishToAscii('Bu rapor yalnizca oneri niteligindedir ve kurumun yasal sorumluluklarini ortadan kaldirmaz. Raporun yasal bir degeri bulunmamaktadir. Sadece bilgilendirme amaclidir.')
+      const splitDisclaimer = doc.splitTextToSize(disclaimer, 160)
+      doc.text(splitDisclaimer, 25, yPos + 5)
+      
+      doc.setFont(undefined, 'bold')
+      doc.text(turkishToAscii('SARIMESE DANISMANLIK'), 25, yPos + 15)
+      
+      // ============ FOOTER ============
+      doc.setFontSize(8)
+      doc.setFont(undefined, 'normal')
+      doc.text(turkishToAscii(`Olusturulma: ${new Date().toLocaleString('tr-TR')}`), 20, 285)
+      doc.text(turkishToAscii('SARIMESE DANISMANLIK'), 190, 285, { align: 'right' })
+      
+      // Kaydet
+      doc.save(`denetim_raporu_${turkishToAscii(inspection.schoolName).replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`)
       sonnerToast.success('PDF rapor indirildi')
     } catch (error) {
       console.error('PDF Error:', error)
@@ -2853,96 +2922,86 @@ function InspectionsTab({ token }) {
           
           {fullReportData && (
             <div className="space-y-6">
-              {/* School Info */}
+              {/* Kurum Bilgileri */}
               <div className="bg-muted p-4 rounded-lg">
                 <h3 className="font-semibold mb-3">Kurum Bilgileri</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                   <div><span className="text-muted-foreground">Okul:</span> <strong>{fullReportData.inspection.schoolName}</strong></div>
-                  <div><span className="text-muted-foreground">İl/İlçe:</span> <strong>{fullReportData.inspection.city?.name} / {fullReportData.inspection.district}</strong></div>
+                  <div><span className="text-muted-foreground">İl / İlçe:</span> <strong>{fullReportData.inspection.city?.name} / {fullReportData.inspection.district}</strong></div>
                   <div><span className="text-muted-foreground">Paket:</span> <strong>{fullReportData.inspection.package?.name}</strong></div>
                   <div><span className="text-muted-foreground">Danışman:</span> <strong>{fullReportData.inspection.inspector?.name || 'Belirtilmemiş'}</strong></div>
                   <div><span className="text-muted-foreground">Rapor Tarihi:</span> <strong>{fullReportData.generatedAt}</strong></div>
-                  <div><span className="text-muted-foreground">Tamamlanma:</span> <strong>{fullReportData.inspection.completedAt ? new Date(fullReportData.inspection.completedAt).toLocaleDateString('tr-TR') : '-'}</strong></div>
                 </div>
               </div>
 
-              {/* Summary Stats */}
-              <div className="grid grid-cols-4 gap-4">
-                <Card className="p-4 text-center">
-                  <div className="text-2xl font-bold">{fullReportData.inspection.answers?.length || 0}</div>
-                  <div className="text-sm text-muted-foreground">Toplam Kontrol</div>
-                </Card>
-                <Card className="p-4 text-center bg-green-50">
-                  <div className="text-2xl font-bold text-green-700">
-                    {fullReportData.inspection.answers?.filter(a => a.answer === 'uygun').length || 0}
-                  </div>
-                  <div className="text-sm text-green-600">Uygun</div>
-                </Card>
-                <Card className="p-4 text-center bg-red-50">
-                  <div className="text-2xl font-bold text-red-700">
-                    {fullReportData.inspection.answers?.filter(a => a.answer === 'uygun_degil').length || 0}
-                  </div>
-                  <div className="text-sm text-red-600">Uygun Değil</div>
-                </Card>
-                <Card className="p-4 text-center bg-yellow-50">
-                  <div className="text-2xl font-bold text-yellow-700">
-                    {fullReportData.inspection.answers?.filter(a => a.answer === 'goreceli').length || 0}
-                  </div>
-                  <div className="text-sm text-yellow-600">Göreceli</div>
-                </Card>
+              {/* Giriş Metni - Highlight Box */}
+              <div className="bg-amber-50 border border-amber-200 p-5 rounded-lg">
+                <p className="text-sm leading-relaxed">
+                  <strong>{fullReportData.generatedAt}</strong> tarihinde <strong>{fullReportData.inspection.schoolName}</strong> kurumu yetkilisi{' '}
+                  <strong>{fullReportData.inspection.schoolContact || 'kurum yetkilisi'}</strong> talebi üzerine yapılan özel denetleme hizmetimiz 
+                  çerçevesinde aşağıda belirtilen detaylar tespit edilmiştir.
+                </p>
+                <p className="text-sm mt-3 text-amber-800">
+                  Eksiklerin en kısa sürede giderilmesi noktasında danışmanlık almak isterseniz sizlere destek olmaktan mutluluk duyarız.
+                </p>
               </div>
 
-              {/* Issues List */}
+              {/* Tespit Edilen Eksikler */}
               <div>
-                <h3 className="font-semibold mb-4">Eksiklikler ve Öneriler (Uygun Değil + Göreceli)</h3>
+                <h3 className="font-bold text-lg mb-4 text-red-800">Tespit Edilen Eksikler</h3>
                 {fullReportData.inspection.answers?.filter(a => a.answer !== 'uygun').length === 0 ? (
-                  <Card className="p-8 text-center">
+                  <Card className="p-8 text-center bg-green-50">
                     <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
                     <p className="text-lg font-semibold text-green-700">Tüm kontroller uygun bulunmuştur! 🎉</p>
                   </Card>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {fullReportData.inspection.answers?.filter(a => a.answer !== 'uygun').map((answer, index) => (
-                      <Card key={answer.id} className="overflow-hidden">
+                      <Card key={answer.id} className="overflow-hidden border-l-4 border-l-red-500">
                         <CardContent className="p-4">
                           <div className="space-y-3">
+                            {/* Kırmızı Başlık */}
                             <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    {answer.question?.category?.name}
-                                  </Badge>
-                                  <Badge className={answer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}>
-                                    {answer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
-                                  </Badge>
-                                </div>
-                                <h4 className="font-medium">{index + 1}. {answer.question?.question}</h4>
-                              </div>
+                              <h4 className="font-bold text-red-700 text-base flex items-center gap-2">
+                                <span className="bg-red-100 text-red-700 rounded-full w-6 h-6 flex items-center justify-center text-sm">{index + 1}</span>
+                                {answer.question?.question}
+                              </h4>
                               <Button size="sm" variant="ghost" onClick={() => startEditNote(answer)}>
                                 <Edit2 className="h-4 w-4" />
                               </Button>
                             </div>
                             
+                            {/* Yönetmelik */}
                             {answer.question?.regulationText && (
-                              <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-sm">
-                                <strong className="text-blue-900">Yönetmelik:</strong>
-                                <p className="text-blue-800 mt-1">{answer.question.regulationText}</p>
+                              <div className="flex items-start gap-2 bg-blue-50 p-3 rounded text-sm">
+                                <span className="text-blue-600">📜</span>
+                                <div>
+                                  <strong className="text-blue-900">Yönetmelik:</strong>
+                                  <p className="text-blue-800 mt-1">{answer.question.regulationText}</p>
+                                </div>
                               </div>
                             )}
                             
+                            {/* Not */}
                             {answer.note && (
-                              <div className="bg-muted p-3 rounded text-sm">
-                                <strong>Danışman Notu:</strong> {answer.note}
+                              <div className="flex items-start gap-2 bg-gray-50 p-3 rounded text-sm">
+                                <span>🗒️</span>
+                                <div>
+                                  <strong>Not:</strong>
+                                  <p className="mt-1">{answer.note}</p>
+                                </div>
                               </div>
                             )}
                             
+                            {/* Ceza */}
                             {answer.question?.penaltyType && (
-                              <div className="bg-red-50 border border-red-200 p-3 rounded text-sm flex items-center gap-2">
-                                <AlertCircle className="h-4 w-4 text-red-600" />
-                                <span><strong className="text-red-900">Ceza Gerekliliği:</strong> <span className="text-red-800">{answer.question.penaltyType}</span></span>
+                              <div className="bg-red-50 border border-red-200 p-3 rounded text-sm">
+                                <strong className="text-red-900">Ceza:</strong>
+                                <span className="text-red-800 ml-2 capitalize">{answer.question.penaltyType}</span>
                               </div>
                             )}
                             
+                            {/* Fotoğraflar */}
                             {answer.photos && JSON.parse(answer.photos || '[]').length > 0 && (
                               <div className="grid grid-cols-4 gap-2 mt-2">
                                 {JSON.parse(answer.photos).map((photo, i) => (
@@ -2958,9 +3017,9 @@ function InspectionsTab({ token }) {
                 )}
               </div>
 
-              {/* Legal Disclaimer */}
+              {/* Hukuki Uyarı */}
               <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm">
-                <strong>⚠️ HUKUKI UYARI:</strong>
+                <strong>⚠️ HUKUKİ UYARI:</strong>
                 <p className="mt-2">
                   Bu rapor yalnızca öneri niteliğindedir ve kurumun yasal sorumluluklarını ortadan kaldırmaz.
                   Raporun yasal bir değeri bulunmamaktadır. Sadece bilgilendirme amaçlıdır.
@@ -2968,7 +3027,7 @@ function InspectionsTab({ token }) {
                 <p className="mt-2 font-semibold">{fullReportData.company}</p>
               </div>
 
-              {/* Actions */}
+              {/* PDF İndir Butonu */}
               <div className="flex gap-4">
                 <Button onClick={downloadPDF} className="flex-1" size="lg" disabled={generatingPDF}>
                   {generatingPDF ? (
