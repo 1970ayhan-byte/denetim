@@ -3501,14 +3501,14 @@ function InspectorPanel({ token, user }) {
     return <InspectionFlow 
       inspection={selectedInspection}
       categories={categories}
-      currentCategoryIndex={currentCategoryIndex}
-      setCurrentCategoryIndex={setCurrentCategoryIndex}
+      initialCategoryIndex={currentCategoryIndex}
+      initialQuestionIndex={resumePosition?.questionIndex || 0}
       answers={answers}
       saveAnswer={saveAnswer}
+      saveProgress={saveProgress}
       completeInspection={completeInspection}
       onCancel={() => setView('list')}
       token={token}
-      resumePosition={resumePosition}
     />
   }
 
@@ -3614,16 +3614,17 @@ function InspectorPanel({ token, user }) {
 function InspectionFlow({ 
   inspection, 
   categories, 
-  currentCategoryIndex, 
-  setCurrentCategoryIndex,
+  initialCategoryIndex = 0,
+  initialQuestionIndex = 0,
   answers,
   saveAnswer,
+  saveProgress,
   completeInspection,
   onCancel,
-  token,
-  resumePosition
+  token
 }) {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [currentCategoryIndex, setCurrentCategoryIndex] = useState(initialCategoryIndex)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex)
   const [localAnswer, setLocalAnswer] = useState('')
   const [localNote, setLocalNote] = useState('')
   const [localPhotos, setLocalPhotos] = useState([])
@@ -3655,13 +3656,6 @@ function InspectionFlow({
       }
     }
   }, [currentCategoryIndex, categories])
-
-  // Resume from last position
-  useEffect(() => {
-    if (resumePosition) {
-      setCurrentQuestionIndex(resumePosition.questionIndex)
-    }
-  }, [resumePosition])
 
   useEffect(() => {
     if (currentQuestion) {
@@ -3774,12 +3768,63 @@ function InspectionFlow({
     setLocalPhotos([])
   }
 
-  const handlePrevious = () => {
+  const handlePrevious = async () => {
+    // Save current answer before navigating
+    if (localAnswer && currentQuestion) {
+      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+    }
+    
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1)
+      const newQIndex = currentQuestionIndex - 1
+      setCurrentQuestionIndex(newQIndex)
+      
+      // Save progress
+      try {
+        await fetch('/api/inspector/inspection/progress', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}` 
+          },
+          body: JSON.stringify({
+            inspectionId: inspection.id,
+            currentCategoryIndex,
+            currentQuestionIndex: newQIndex
+          })
+        })
+      } catch (e) {
+        console.error('Progress save failed:', e)
+      }
     } else if (currentCategoryIndex > 0) {
-      setCurrentCategoryIndex(currentCategoryIndex - 1)
-      setCurrentQuestionIndex(categories[currentCategoryIndex - 1].questions.length - 1)
+      // Find previous category with questions
+      let prevCatIndex = currentCategoryIndex - 1
+      while (prevCatIndex >= 0 && (categories[prevCatIndex]?.questions?.length || 0) === 0) {
+        prevCatIndex--
+      }
+      
+      if (prevCatIndex >= 0) {
+        const newQIndex = categories[prevCatIndex].questions.length - 1
+        setCurrentCategoryIndex(prevCatIndex)
+        setCurrentQuestionIndex(newQIndex)
+        
+        // Save progress
+        try {
+          await fetch('/api/inspector/inspection/progress', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}` 
+            },
+            body: JSON.stringify({
+              inspectionId: inspection.id,
+              currentCategoryIndex: prevCatIndex,
+              currentQuestionIndex: newQIndex
+            })
+          })
+        } catch (e) {
+          console.error('Progress save failed:', e)
+        }
+      }
     }
   }
 
