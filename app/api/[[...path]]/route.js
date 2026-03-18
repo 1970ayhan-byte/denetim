@@ -784,6 +784,160 @@ async function handleRoute(request, { params }) {
       }))
     }
     
+    // ============ INSPECTOR - GET EXISTING ANSWERS (for resume) ============
+    
+    if (route.startsWith('/inspector/inspection/') && route.endsWith('/answers') && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const inspectionId = path[2]
+      const answers = await prisma.inspectionAnswer.findMany({
+        where: { inspectionId },
+        include: { question: true }
+      })
+      
+      // Convert to map format
+      const answersMap = {}
+      answers.forEach(a => {
+        answersMap[a.questionId] = {
+          answer: a.answer,
+          note: a.note || '',
+          photos: a.photos ? JSON.parse(a.photos) : []
+        }
+      })
+      
+      return handleCORS(NextResponse.json({ 
+        answers: answersMap,
+        lastAnsweredQuestionId: answers.length > 0 ? answers[answers.length - 1].questionId : null
+      }))
+    }
+    
+    // ============ ADMIN - DASHBOARD STATS ============
+    
+    if (route === '/admin/stats' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const url = new URL(request.url)
+      const period = url.searchParams.get('period') || '1m' // 1m, 3m, 6m, 1y, 2y
+      
+      // Calculate date range
+      const now = new Date()
+      let startDate = new Date()
+      
+      switch(period) {
+        case '1m': startDate.setMonth(now.getMonth() - 1); break
+        case '3m': startDate.setMonth(now.getMonth() - 3); break
+        case '6m': startDate.setMonth(now.getMonth() - 6); break
+        case '1y': startDate.setFullYear(now.getFullYear() - 1); break
+        case '2y': startDate.setFullYear(now.getFullYear() - 2); break
+        default: startDate.setMonth(now.getMonth() - 1)
+      }
+      
+      // Get messages count
+      const messages = await prisma.message.findMany({
+        where: { createdAt: { gte: startDate } }
+      })
+      
+      // Get inspections
+      const inspections = await prisma.inspection.findMany({
+        where: { createdAt: { gte: startDate } },
+        include: { package: true }
+      })
+      
+      // Get payments
+      const payments = await prisma.payment.findMany({
+        where: { 
+          createdAt: { gte: startDate },
+          status: 'completed'
+        }
+      })
+      
+      // Calculate totals
+      const totalMessages = messages.length
+      const totalInspections = inspections.filter(i => i.status === 'completed').length
+      const totalRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0)
+      
+      // Group by month for chart data
+      const chartData = []
+      const tempDate = new Date(startDate)
+      
+      while (tempDate <= now) {
+        const monthStart = new Date(tempDate.getFullYear(), tempDate.getMonth(), 1)
+        const monthEnd = new Date(tempDate.getFullYear(), tempDate.getMonth() + 1, 0)
+        
+        const monthMessages = messages.filter(m => {
+          const d = new Date(m.createdAt)
+          return d >= monthStart && d <= monthEnd
+        }).length
+        
+        const monthInspections = inspections.filter(i => {
+          const d = new Date(i.createdAt)
+          return d >= monthStart && d <= monthEnd && i.status === 'completed'
+        }).length
+        
+        const monthRevenue = payments.filter(p => {
+          const d = new Date(p.createdAt)
+          return d >= monthStart && d <= monthEnd
+        }).reduce((sum, p) => sum + (p.amount || 0), 0)
+        
+        chartData.push({
+          month: tempDate.toLocaleDateString('tr-TR', { month: 'short', year: 'numeric' }),
+          mesajlar: monthMessages,
+          denetimler: monthInspections,
+          ciro: monthRevenue
+        })
+        
+        tempDate.setMonth(tempDate.getMonth() + 1)
+      }
+      
+      return handleCORS(NextResponse.json({
+        totals: {
+          messages: totalMessages,
+          inspections: totalInspections,
+          revenue: totalRevenue
+        },
+        chartData
+      }))
+    }
+    
+    // ============ ADMIN - EXPORT INSPECTIONS LIST ============
+    
+    if (route === '/admin/inspections/export' && method === 'GET') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'admin') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      
+      const url = new URL(request.url)
+      const startDate = url.searchParams.get('startDate')
+      const endDate = url.searchParams.get('endDate')
+      
+      const where = {}
+      if (startDate && endDate) {
+        where.createdAt = {
+          gte: new Date(startDate),
+          lte: new Date(endDate)
+        }
+      }
+      
+      const inspections = await prisma.inspection.findMany({
+        where,
+        include: {
+          city: true,
+          package: true,
+          inspector: { select: { name: true, phone: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      })
+      
+      return handleCORS(NextResponse.json(inspections))
+    }
+    
     // ============ ADMIN - GET INSPECTION REPORT (FULL) ============
     
     if (route.startsWith('/admin/inspection/') && route.endsWith('/report') && method === 'GET') {

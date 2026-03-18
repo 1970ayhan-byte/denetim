@@ -40,6 +40,11 @@ export default function App() {
     }
   }, [])
 
+  // Scroll to top when page changes
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [currentPage])
+
   const logout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
@@ -1063,7 +1068,8 @@ function AdminPanel({ token }) {
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold mb-6">Admin Paneli</h1>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 lg:grid-cols-10 mb-6">
+          <TabsList className="grid grid-cols-4 lg:grid-cols-11 mb-6">
+            <TabsTrigger value="dashboard">📊 Raporlama</TabsTrigger>
             <TabsTrigger value="categories">Kategoriler</TabsTrigger>
             <TabsTrigger value="questions">Sorular</TabsTrigger>
             <TabsTrigger value="staff">Personel</TabsTrigger>
@@ -1075,6 +1081,7 @@ function AdminPanel({ token }) {
             <TabsTrigger value="news">Haberler</TabsTrigger>
             <TabsTrigger value="assign">Atama</TabsTrigger>
           </TabsList>
+          <TabsContent value="dashboard"><DashboardTab token={token} /></TabsContent>
           <TabsContent value="categories"><CategoriesTab token={token} /></TabsContent>
           <TabsContent value="questions"><QuestionsTab token={token} /></TabsContent>
           <TabsContent value="staff"><StaffTab token={token} /></TabsContent>
@@ -1087,6 +1094,314 @@ function AdminPanel({ token }) {
           <TabsContent value="assign"><InspectionAssignmentTab token={token} /></TabsContent>
         </Tabs>
       </div>
+    </div>
+  )
+}
+
+// Dashboard Tab - Raporlama ve İstatistikler
+function DashboardTab({ token }) {
+  const [period, setPeriod] = useState('1m')
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [exportDateRange, setExportDateRange] = useState({ start: '', end: '' })
+  const [exportData, setExportData] = useState(null)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    loadStats()
+  }, [period])
+
+  const loadStats = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/stats?period=${period}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const data = await response.json()
+      setStats(data)
+    } catch (error) {
+      sonnerToast.error('İstatistikler yüklenemedi')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const exportPDF = async () => {
+    if (!exportDateRange.start || !exportDateRange.end) {
+      sonnerToast.error('Tarih aralığı seçin')
+      return
+    }
+    
+    setExporting(true)
+    try {
+      const response = await fetch(
+        `/api/admin/inspections/export?startDate=${exportDateRange.start}&endDate=${exportDateRange.end}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const data = await response.json()
+      
+      // Generate PDF
+      const html2pdf = (await import('html2pdf.js')).default
+      
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="tr">
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+            body { padding: 20px; color: #333; font-size: 11px; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
+            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 20px; }
+            .header p { margin: 3px 0; color: #666; font-size: 10px; }
+            .date-range { background: #f0f9ff; padding: 10px; border-radius: 6px; margin-bottom: 20px; text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th { background: #1e40af; color: white; padding: 10px 8px; text-align: left; font-size: 10px; }
+            td { padding: 8px; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
+            tr:nth-child(even) { background: #f9fafb; }
+            .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 9px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>DENETİM LİSTESİ RAPORU</h1>
+            <p><strong>SARIMEŞE DANIŞMANLIK</strong></p>
+            <p>Eğitim ve Bilişim Teknolojileri Sanayi Ticaret Ltd. Şti.</p>
+          </div>
+          
+          <div class="date-range">
+            <strong>Tarih Aralığı:</strong> ${new Date(exportDateRange.start).toLocaleDateString('tr-TR')} - ${new Date(exportDateRange.end).toLocaleDateString('tr-TR')}
+            <br><strong>Toplam Kayıt:</strong> ${data.length}
+          </div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Okul Adı</th>
+                <th>Yetkili</th>
+                <th>İl</th>
+                <th>İlçe</th>
+                <th>Telefon</th>
+                <th>Paket</th>
+                <th>Durum</th>
+                <th>Tarih</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.map((insp, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${insp.schoolName}</td>
+                  <td>${insp.contactName || '-'}</td>
+                  <td>${insp.city?.name || '-'}</td>
+                  <td>${insp.district || '-'}</td>
+                  <td>${insp.phone || '-'}</td>
+                  <td>${insp.package?.name || '-'}</td>
+                  <td>${insp.status === 'completed' ? 'Tamamlandı' : insp.status === 'in_progress' ? 'Devam Ediyor' : 'Bekliyor'}</td>
+                  <td>${new Date(insp.createdAt).toLocaleDateString('tr-TR')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="footer">
+            <p>Oluşturulma: ${new Date().toLocaleString('tr-TR')} | SARIMEŞE DANIŞMANLIK</p>
+          </div>
+        </body>
+        </html>
+      `
+      
+      const element = document.createElement('div')
+      element.innerHTML = htmlContent
+      document.body.appendChild(element)
+      
+      await html2pdf().set({
+        margin: 10,
+        filename: `denetim_listesi_${exportDateRange.start}_${exportDateRange.end}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      }).from(element).save()
+      
+      document.body.removeChild(element)
+      sonnerToast.success('PDF rapor indirildi')
+    } catch (error) {
+      sonnerToast.error('Export hatası')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  // Dynamic import for Recharts
+  const [RechartsComponents, setRechartsComponents] = useState(null)
+  
+  useEffect(() => {
+    import('recharts').then(module => {
+      setRechartsComponents({
+        LineChart: module.LineChart,
+        Line: module.Line,
+        XAxis: module.XAxis,
+        YAxis: module.YAxis,
+        CartesianGrid: module.CartesianGrid,
+        Tooltip: module.Tooltip,
+        Legend: module.Legend,
+        ResponsiveContainer: module.ResponsiveContainer
+      })
+    })
+  }, [])
+
+  const periodOptions = [
+    { value: '1m', label: 'Aylık' },
+    { value: '3m', label: '3 Aylık' },
+    { value: '6m', label: '6 Aylık' },
+    { value: '1y', label: 'Yıllık' },
+    { value: '2y', label: '2 Yıllık' }
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">📊 Raporlama & İstatistikler</h2>
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {periodOptions.map(opt => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Summary Cards */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm">Gelen Mesajlar</p>
+                  <p className="text-4xl font-bold mt-2">{stats.totals.messages}</p>
+                </div>
+                <MessageSquare className="h-12 w-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm">Tamamlanan Denetimler</p>
+                  <p className="text-4xl font-bold mt-2">{stats.totals.inspections}</p>
+                </div>
+                <ClipboardList className="h-12 w-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-purple-100 text-sm">Toplam Ciro</p>
+                  <p className="text-4xl font-bold mt-2">₺{stats.totals.revenue.toLocaleString('tr-TR')}</p>
+                </div>
+                <CreditCard className="h-12 w-12 opacity-50" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Chart */}
+      {stats && RechartsComponents && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Zaman Bazlı Değişim</CardTitle>
+            <CardDescription>Mesajlar, denetimler ve ciro trendi</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <RechartsComponents.ResponsiveContainer width="100%" height="100%">
+                <RechartsComponents.LineChart data={stats.chartData}>
+                  <RechartsComponents.CartesianGrid strokeDasharray="3 3" />
+                  <RechartsComponents.XAxis dataKey="month" />
+                  <RechartsComponents.YAxis yAxisId="left" />
+                  <RechartsComponents.YAxis yAxisId="right" orientation="right" />
+                  <RechartsComponents.Tooltip />
+                  <RechartsComponents.Legend />
+                  <RechartsComponents.Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="mesajlar" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    name="Mesajlar"
+                  />
+                  <RechartsComponents.Line 
+                    yAxisId="left"
+                    type="monotone" 
+                    dataKey="denetimler" 
+                    stroke="#22c55e" 
+                    strokeWidth={2}
+                    name="Denetimler"
+                  />
+                  <RechartsComponents.Line 
+                    yAxisId="right"
+                    type="monotone" 
+                    dataKey="ciro" 
+                    stroke="#a855f7" 
+                    strokeWidth={2}
+                    name="Ciro (₺)"
+                  />
+                </RechartsComponents.LineChart>
+              </RechartsComponents.ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Export Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>📥 Denetim Listesi PDF Export</CardTitle>
+          <CardDescription>Belirli tarih aralığındaki denetimleri PDF olarak indirin</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="space-y-2">
+              <Label>Başlangıç Tarihi</Label>
+              <Input 
+                type="date" 
+                value={exportDateRange.start}
+                onChange={(e) => setExportDateRange({ ...exportDateRange, start: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Bitiş Tarihi</Label>
+              <Input 
+                type="date" 
+                value={exportDateRange.end}
+                onChange={(e) => setExportDateRange({ ...exportDateRange, end: e.target.value })}
+              />
+            </div>
+            <Button onClick={exportPDF} disabled={exporting}>
+              <Download className="h-4 w-4 mr-2" />
+              {exporting ? 'Hazırlanıyor...' : 'PDF İndir'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {loading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Yükleniyor...</p>
+        </div>
+      )}
     </div>
   )
 }
@@ -3033,6 +3348,7 @@ function InspectorPanel({ token, user }) {
   const [categories, setCategories] = useState([])
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0)
   const [answers, setAnswers] = useState({})
+  const [resumePosition, setResumePosition] = useState(null)
 
   useEffect(() => {
     loadInspections()
@@ -3045,7 +3361,7 @@ function InspectorPanel({ token, user }) {
     setInspections(await response.json())
   }
 
-  const startInspection = async (inspection) => {
+  const startInspection = async (inspection, isResume = false) => {
     try {
       const response = await fetch('/api/inspector/inspection/start', {
         method: 'POST',
@@ -3059,13 +3375,46 @@ function InspectorPanel({ token, user }) {
       const data = await response.json()
       setSelectedInspection(data.inspection)
       setCategories(data.categories)
+      
+      // If resuming, load existing answers
+      if (isResume && inspection.status === 'in_progress') {
+        const answersResponse = await fetch(`/api/inspector/inspection/${inspection.id}/answers`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const answersData = await answersResponse.json()
+        setAnswers(answersData.answers || {})
+        
+        // Find last answered position
+        if (answersData.lastAnsweredQuestionId) {
+          const position = findQuestionPosition(data.categories, answersData.lastAnsweredQuestionId)
+          if (position) {
+            setResumePosition(position)
+          }
+        }
+      } else {
+        setAnswers({})
+        setResumePosition(null)
+      }
+      
       setCurrentCategoryIndex(0)
-      setAnswers({})
       setView('inspection')
-      sonnerToast.success('Denetim başlatıldı')
+      sonnerToast.success(isResume ? 'Denetime devam ediliyor' : 'Denetim başlatıldı')
     } catch (error) {
       sonnerToast.error('Hata oluştu')
     }
+  }
+
+  // Find question position in categories
+  const findQuestionPosition = (cats, questionId) => {
+    for (let catIdx = 0; catIdx < cats.length; catIdx++) {
+      const questions = cats[catIdx].questions || []
+      for (let qIdx = 0; qIdx < questions.length; qIdx++) {
+        if (questions[qIdx].id === questionId) {
+          return { categoryIndex: catIdx, questionIndex: qIdx }
+        }
+      }
+    }
+    return null
   }
 
   const saveAnswer = async (questionId, answer, note = '', photos = []) => {
@@ -3097,7 +3446,7 @@ function InspectorPanel({ token, user }) {
   }
 
   const completeInspection = async () => {
-    if (!confirm('Denetimi tamamlamak istediğinizden emin misiniz?')) return
+    if (!confirm('Denetimi tamamlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.')) return
     
     try {
       await fetch('/api/inspector/inspection/complete', {
@@ -3128,6 +3477,7 @@ function InspectorPanel({ token, user }) {
       completeInspection={completeInspection}
       onCancel={() => setView('list')}
       token={token}
+      resumePosition={resumePosition}
     />
   }
 
@@ -3163,7 +3513,7 @@ function InspectorPanel({ token, user }) {
                       </Badge>
                     )}
                     {insp.status === 'in_progress' && (
-                      <Badge variant="default">
+                      <Badge variant="default" className="bg-blue-100 text-blue-800">
                         <Clock className="h-3 w-3 mr-1" /> Devam Ediyor
                       </Badge>
                     )}
@@ -3190,14 +3540,15 @@ function InspectorPanel({ token, user }) {
                     {insp.payment?.status === 'completed' ? (
                       <div className="pt-4 border-t">
                         {insp.status === 'pending' && (
-                          <Button className="w-full" onClick={() => startInspection(insp)}>
+                          <Button className="w-full" onClick={() => startInspection(insp, false)}>
                             <Zap className="h-4 w-4 mr-2" />
                             Denetimi Başlat
                           </Button>
                         )}
                         {insp.status === 'in_progress' && (
-                          <Button className="w-full" variant="outline" onClick={() => startInspection(insp)}>
-                            Denetim e Devam Et
+                          <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => startInspection(insp, true)}>
+                            <ChevronRight className="h-4 w-4 mr-2" />
+                            Denetime Devam Et
                           </Button>
                         )}
                         {insp.status === 'completed' && (
@@ -3238,19 +3589,38 @@ function InspectionFlow({
   saveAnswer,
   completeInspection,
   onCancel,
-  token
+  token,
+  resumePosition
 }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
   const [localAnswer, setLocalAnswer] = useState('')
   const [localNote, setLocalNote] = useState('')
   const [localPhotos, setLocalPhotos] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [showFinishDialog, setShowFinishDialog] = useState(false)
 
   const currentCategory = categories[currentCategoryIndex]
   const currentQuestion = currentCategory?.questions[currentQuestionIndex]
   const totalQuestions = currentCategory?.questions.length || 0
   const isLastQuestion = currentQuestionIndex === totalQuestions - 1
   const isLastCategory = currentCategoryIndex === categories.length - 1
+
+  // Resume from last position
+  useEffect(() => {
+    if (resumePosition) {
+      setCurrentCategoryIndex(resumePosition.categoryIndex)
+      // Go to next question after last answered
+      const nextQIdx = resumePosition.questionIndex + 1
+      const catQuestions = categories[resumePosition.categoryIndex]?.questions?.length || 0
+      if (nextQIdx < catQuestions) {
+        setCurrentQuestionIndex(nextQIdx)
+      } else if (resumePosition.categoryIndex < categories.length - 1) {
+        setCurrentCategoryIndex(resumePosition.categoryIndex + 1)
+        setCurrentQuestionIndex(0)
+      }
+    }
+  }, [resumePosition])
 
   useEffect(() => {
     if (currentQuestion) {
@@ -3260,6 +3630,18 @@ function InspectionFlow({
       setLocalPhotos(savedAnswer?.photos || [])
     }
   }, [currentQuestion, answers])
+
+  // Autosave when answer changes
+  useEffect(() => {
+    if (currentQuestion && localAnswer) {
+      const timer = setTimeout(async () => {
+        setAutoSaving(true)
+        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+        setAutoSaving(false)
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [localAnswer, localNote])
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -3295,8 +3677,8 @@ function InspectionFlow({
 
     if (isLastQuestion) {
       if (isLastCategory) {
-        // Son soru, son kategori - tamamla
-        await completeInspection()
+        // Son soru, son kategori - "Denetimi Bitir" dialogu göster
+        setShowFinishDialog(true)
       } else {
         // Sonraki kategoriye geç
         setCurrentCategoryIndex(currentCategoryIndex + 1)
@@ -3322,9 +3704,18 @@ function InspectionFlow({
     }
   }
 
+  const handleFinishInspection = async () => {
+    await completeInspection()
+    setShowFinishDialog(false)
+  }
+
   if (!currentQuestion) return null
 
   const progress = ((currentCategoryIndex * 100) + ((currentQuestionIndex + 1) / totalQuestions * 100)) / categories.length
+  
+  // Count answered questions
+  const totalAllQuestions = categories.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
+  const answeredCount = Object.keys(answers).length
 
   return (
     <div className="min-h-screen bg-muted/20">
@@ -3336,9 +3727,14 @@ function InspectionFlow({
               <h2 className="text-lg font-bold">{inspection.schoolName}</h2>
               <p className="text-sm text-muted-foreground">{currentCategory.name}</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={onCancel}>
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {autoSaving && (
+                <span className="text-xs text-green-600 animate-pulse">💾 Kaydediliyor...</span>
+              )}
+              <Button variant="ghost" size="sm" onClick={onCancel}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           
           <div className="space-y-2">
@@ -3351,6 +3747,9 @@ function InspectionFlow({
                 className="bg-primary h-2 rounded-full transition-all"
                 style={{ width: `${progress}%` }}
               />
+            </div>
+            <div className="text-xs text-center text-muted-foreground">
+              Toplam ilerleme: {answeredCount} / {totalAllQuestions} soru cevaplandı
             </div>
           </div>
         </div>
@@ -3481,15 +3880,73 @@ function InspectionFlow({
               ← Önceki Soru
             </Button>
           )}
-          <Button 
-            onClick={handleNext}
-            disabled={!localAnswer}
-            className="flex-1"
-          >
-            {isLastQuestion && isLastCategory ? 'Denetimi Tamamla' : 'Sonraki Soru'} →
-          </Button>
+          {isLastQuestion && isLastCategory ? (
+            <Button 
+              onClick={() => {
+                if (localAnswer) {
+                  saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+                }
+                setShowFinishDialog(true)
+              }}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              DENETİMİ BİTİR
+            </Button>
+          ) : (
+            <Button 
+              onClick={handleNext}
+              disabled={!localAnswer}
+              className="flex-1"
+            >
+              Sonraki Soru →
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Finish Inspection Dialog */}
+      <Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-6 w-6 text-green-600" />
+              Denetimi Tamamla
+            </DialogTitle>
+            <DialogDescription>
+              Bu işlem geri alınamaz. Denetimi tamamladıktan sonra cevaplar düzenlenemez.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted p-4 rounded-lg">
+              <h4 className="font-semibold mb-2">Özet</h4>
+              <div className="text-sm space-y-1">
+                <p>Kurum: <strong>{inspection.schoolName}</strong></p>
+                <p>Cevaplanan Soru: <strong>{answeredCount} / {totalAllQuestions}</strong></p>
+              </div>
+            </div>
+            
+            {answeredCount < totalAllQuestions && (
+              <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                <p className="text-sm text-yellow-800 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Dikkat: Bazı sorular henüz cevaplanmamış.
+                </p>
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setShowFinishDialog(false)} className="flex-1">
+                Geri Dön
+              </Button>
+              <Button onClick={handleFinishInspection} className="flex-1 bg-green-600 hover:bg-green-700">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Denetimi Tamamla
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
