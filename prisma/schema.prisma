@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// This is your Prisma schema file for MongoDB
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -6,13 +6,13 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mongodb"
+  url      = env("MONGO_URL")
 }
 
 // Kullanıcılar (Admin ve Denetim Personeli)
 model User {
-  id            String        @id @default(uuid())
+  id            String        @id @default(uuid()) @map("_id")
   phone         String        @unique
   password      String
   name          String
@@ -25,7 +25,7 @@ model User {
 
 // Denetim Kategorileri (MEB, Yangın, Tarım vb.)
 model Category {
-  id          String      @id @default(uuid())
+  id          String      @id @default(uuid()) @map("_id")
   name        String
   order       Int         @default(0)
   createdAt   DateTime    @default(now())
@@ -35,7 +35,7 @@ model Category {
 
 // Denetim Soruları
 model Question {
-  id              String    @id @default(uuid())
+  id              String    @id @default(uuid()) @map("_id")
   categoryId      String
   question        String
   regulationText  String    @default("")
@@ -50,7 +50,7 @@ model Question {
 
 // Paketler
 model Package {
-  id          String      @id @default(uuid())
+  id          String      @id @default(uuid()) @map("_id")
   name        String
   price       Float
   description String      @default("")
@@ -64,7 +64,7 @@ model Package {
 
 // İller (Yol ve Konaklama Ücretleri)
 model City {
-  id                  String      @id @default(uuid())
+  id                  String      @id @default(uuid()) @map("_id")
   name                String      @unique
   travelCost          Float       @default(0)
   accommodationCost   Float       @default(0)
@@ -76,7 +76,7 @@ model City {
 
 // Denetimler
 model Inspection {
-  id                    String      @id @default(uuid())
+  id                    String      @id @default(uuid()) @map("_id")
   schoolName            String
   cityId                String
   district              String      @default("")
@@ -102,7 +102,7 @@ model Inspection {
 
 // Denetim Cevapları
 model InspectionAnswer {
-  id              String      @id @default(uuid())
+  id              String      @id @default(uuid()) @map("_id")
   inspectionId    String
   questionId      String
   answer          String      // "uygun", "uygun_degil", "goreceli"
@@ -116,7 +116,7 @@ model InspectionAnswer {
 
 // Ödemeler
 model Payment {
-  id            String      @id @default(uuid())
+  id            String      @id @default(uuid()) @map("_id")
   amount        Float
   packageId     String
   schoolName    String
@@ -140,7 +140,7 @@ model Payment {
 
 // İletişim Mesajları
 model Message {
-  id            String      @id @default(uuid())
+  id            String      @id @default(uuid()) @map("_id")
   name          String
   schoolName    String      @default("")
   phone         String
@@ -152,7 +152,7 @@ model Message {
 
 // Haberler (Blog)
 model News {
-  id            String      @id @default(uuid())
+  id            String      @id @default(uuid()) @map("_id")
   title         String
   content       String
   imageUrl      String      @default("")
