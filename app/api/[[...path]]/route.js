@@ -674,7 +674,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const { inspectionId } = await request.json()
+      const { inspectionId, findFirstUnanswered = false } = await request.json()
       
       // Get current inspection with position info
       let inspection = await prisma.inspection.findUnique({
@@ -707,14 +707,59 @@ async function handleRoute(request, { params }) {
         }
       })
       
+      // Find first unanswered question (for resume functionality)
+      let resumeCategoryIndex = inspection.currentCategoryIndex || 0
+      let resumeQuestionIndex = inspection.currentQuestionIndex || 0
+      
+      if (findFirstUnanswered && inspection.status === 'in_progress') {
+        let foundUnanswered = false
+        
+        for (let catIdx = 0; catIdx < categories.length && !foundUnanswered; catIdx++) {
+          const questions = categories[catIdx].questions || []
+          for (let qIdx = 0; qIdx < questions.length && !foundUnanswered; qIdx++) {
+            const questionId = questions[qIdx].id
+            if (!answersMap[questionId]) {
+              // Found first unanswered question
+              resumeCategoryIndex = catIdx
+              resumeQuestionIndex = qIdx
+              foundUnanswered = true
+              
+              // Update inspection position
+              await prisma.inspection.update({
+                where: { id: inspectionId },
+                data: { 
+                  currentCategoryIndex: catIdx,
+                  currentQuestionIndex: qIdx
+                }
+              })
+            }
+          }
+        }
+        
+        // If all questions answered, stay at last position
+        if (!foundUnanswered) {
+          // Go to last question
+          const lastCatIdx = categories.length - 1
+          const lastQIdx = (categories[lastCatIdx]?.questions?.length || 1) - 1
+          resumeCategoryIndex = lastCatIdx
+          resumeQuestionIndex = lastQIdx
+        }
+      }
+      
       return handleCORS(NextResponse.json({ 
         inspection: {
           ...inspection,
-          currentCategoryIndex: inspection.currentCategoryIndex || 0,
-          currentQuestionIndex: inspection.currentQuestionIndex || 0
+          currentCategoryIndex: resumeCategoryIndex,
+          currentQuestionIndex: resumeQuestionIndex
         },
         categories,
-        answersMap
+        answersMap,
+        resumeInfo: {
+          categoryIndex: resumeCategoryIndex,
+          questionIndex: resumeQuestionIndex,
+          totalAnswered: Object.keys(answersMap).length,
+          totalQuestions: categories.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
+        }
       }))
     }
     

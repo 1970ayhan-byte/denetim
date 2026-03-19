@@ -1,0 +1,209 @@
+original_problem_statement:
+The user wants to build a web-based SaaS platform named Okul Öncesi Denetim ve Raporlama Sistemi (Preschool Inspection and Reporting System). The platform's goal is to help private preschools prepare for official inspections (MEB, Fire, Agriculture) by identifying deficiencies and generating reports.
+
+**PRODUCT REQUIREMENTS:**
+
+The system consists of three main modules:
+1.  **Website (Marketing & Sales):**
+    *   Pages: Homepage, Services, Packages, News, Contact.
+    *   Goal: Drive preschool owners to purchase an inspection service.
+    *   Features: Strong CTAs, package purchasing flow, contact forms.
+2.  **Admin Panel:**
+    *   A comprehensive backend for managing the entire operation.
+    *   Features: User/Staff management, CRM for contact forms, package management, audit category/question management, service area management, payment viewing, and a reporting dashboard to view/manage audits.
+3.  **Field Staff Tablet Interface:**
+    *   An interface for inspectors to use on-site.
+    *   Features: View assigned audits, navigate through audit questions, select answers, add notes, capture photos, and finalize inspections.
+
+**Key Technology & Flows:**
+*   **Tech Stack:** Next.js, Tailwind, Node.js, PostgreSQL (currently SQLite).
+*   **Authentication:** Phone number + password.
+*   **Payments:** ParamPOS integration (currently mocked).
+*   **Reporting:** Server-side PDF generation.
+*   **Notifications:** SMS via NetGSM (currently mocked).
+
+**User's preferred language**: Turkish (Türkçe)
+
+**what currently exists?**
+The project is a full-stack Next.js application using Prisma v5 and a SQLite database. The application's UI and backend logic are primarily contained within two monolithic files,  and , respectively.
+
+The core operational workflow (assigning, inspecting, completing, and reporting) is now functionally complete. This includes a robust pause and resume from last question feature for inspectors. An Admin Dashboard has been created with performance charts and a date-range based PDF export for inspection lists.
+
+Significant UI/UX improvements have been implemented, including header/footer centering, scroll reset on page navigation, and a complete redesign of the PDF report to fix Turkish character issues and match a new, modern layout specified by the user.
+
+**Last working item**:
+-   **Last item agent was working**: The agent was implementing the Edit Completed Inspection feature. This feature allows an inspector to edit a completed inspection for a limited time (6 hours). The agent successfully implemented the frontend UI for this, creating a new edit mode view () and adding the Düzenle (Edit) button to the inspector's dashboard for recently completed inspections.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: both. The backend logic (6-hour rule, update endpoint) needs to be tested via  or . The frontend UI flow (button visibility, edit mode navigation, saving changes) needs to be tested with the screenshot tool.
+-   **User Testing Done**: N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1**: Complete Backend for Edit Completed Inspection Feature (P0 - HIGHEST PRIORITY)
+    -   **Description**: The user requested a feature to allow inspectors to edit a completed inspection within a 6-hour window. While the agent built the frontend UI for this, the entire backend implementation is missing. The feature is currently non-functional.
+    -   **Attempted fixes**: The agent created the  component and added the Edit button with its display logic in . No backend changes were made.
+    -   **Next debug checklist**:
+        1.  **DB Schema**: Modify . Add a  field to the  model.
+        2.  **DB Migration**: Run yarn run v1.22.22
+$ /app/node_modules/.bin/prisma db push
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+The database is already in sync with the Prisma schema.
+
+Running generate... (Use --skip-generate to skip the generators)
+[2K[1A[2K[GRunning generate... - Prisma Client
+[2K[1A[2K[G✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 440ms
+
+Done in 2.54s. to apply the schema change.
+        3.  **Backend Logic ()**:
+            *   In the endpoint that completes an inspection (e.g., ), add logic to set the  timestamp to .
+            *   Create a new endpoint, e.g., , to handle the update.
+            *   Inside this new endpoint, add a mandatory check to ensure the editing time has not expired. Compare  with the stored  and return a 403 Forbidden error if the difference is more than 6 hours.
+        4.  **Frontend Logic ()**: Connect the Kaydet (Save) button in the  component to the new  endpoint to persist the changes.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical feature for field usability, allowing inspectors to correct mistakes shortly after finishing a job. Completing it will make the system more robust and professional.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on other issue**: None
+
+**In progress Task List**:
+- There are no other partially completed tasks. The Edit Completed Inspection feature is tracked as a high-priority issue.
+
+**Upcoming and Future Tasks**
+*   **Upcoming Tasks:**
+    *   **Implement Photo Upload for Inspectors (P1):** Add functionality for inspectors to upload photos as evidence for their answers. This was part of the original plan but has not been implemented.
+    *   **High-Converting Landing Page () (P1):** Create a separate, minimal landing page at the  route, designed for paid ad traffic. This was explicitly postponed.
+*   **Future Tasks:**
+    *   **Database Migration (P2):** Migrate the database from SQLite to PostgreSQL (Supabase).
+    *   **Real-time Integrations (P2):**
+        *   Replace the mock payment system with a real **ParamPOS** integration.
+        *   Replace the mock SMS system with a real **NetGSM** integration.
+    *   **Flesh out Payments Tab (P3):** Update the Ödemeler (Payments) tab in the admin panel to display real transaction data from ParamPOS.
+
+**Completed work in this session**
+-   **Core Workflow & Inspector Panel:**
+    -   **Resume Inspection:** Fully implemented and tested the ability for inspectors to pause and resume inspections from the exact question they left off. The system now saves  and  to the database.
+    -   **Pause/Finish Flow:** Added a Ara Ver (Pause) button to save progress and a final Denetimi Bitir (Finish Inspection) confirmation dialog.
+    -   **Navigation:** Added a ← Önceki Soru (Previous Question) button for easier navigation during an inspection.
+    -   **Bug Fix:** Added logic to automatically skip empty categories during the inspection flow.
+-   **Admin Panel & Reporting:**
+    -   **Dashboard:** Created a new 📊 Raporlama tab with summary cards (messages, inspections, revenue) and a -based line chart for performance analysis.
+    -   **PDF Export:** Added a feature to export a filtered list of inspections as a PDF table.
+    -   **Data Integrity:** Made Contact Person and Phone fields mandatory when assigning an inspection to ensure reports are complete.
+-   **PDF & UI/UX:**
+    -   **Turkish Character Fix:** Replaced  with  to permanently solve Turkish character (UTF-8) rendering issues in PDF reports.
+    -   **Report Redesign:** Implemented a complete visual overhaul of the PDF report based on user specifications, including a highlight box, new headers, and modern item styling.
+    -   **UI Fixes:** Centered the main header and footer. Implemented a scroll-to-top on page navigation. Updated text on the Services page as requested.
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1: High-Converting Landing Page ()**
+    -   A detailed user request for a separate landing page for ad campaigns was acknowledged but deferred to prioritize core application features.
+    -   **Why to solve this issue and what will be achieved with this?**: This is crucial for future marketing campaigns and tracking ad spend ROI.
+    -   **Should Test frontend/backend/both after fix**: Frontend.
+
+**Known issue recurrence from previous fork**
+-   None.
+
+**Code Architecture**
+
+
+**Key Technical Concepts**
+*   **Framework:** Next.js 14 (App Router)
+*   **Styling:** Tailwind CSS with shadcn/ui components.
+*   **Backend:** A single monolithic API route ().
+*   **Database ORM:** Prisma v5.
+*   **Database:** SQLite (temporary).
+*   **Charting:**  for the admin dashboard.
+*   **PDF Generation:**  for robust UTF-8 support.
+*   **Architecture:** Extremely monolithic frontend () and backend ().
+
+**key DB schema**
+*   : { id, schoolName, status, userId, packageId, date, **currentCategoryIndex**, **currentQuestionIndex**, schoolContact, schoolPhone, **completedAt (MISSING - MUST BE ADDED)** }
+*   : { id, phone, password, name, role }
+*   : { id, name, price }
+*   : { id, name }
+*   : { id, text, categoryId }
+*   : { id, value, note, imageUrl, questionId, inspectionId }
+
+**All files of reference**
+*   : **CRITICAL**. Contains the entire frontend application. All UI work happens here. It is now over 4000 lines long.
+*   : **CRITICAL**. The single entry point for all backend logic. All database operations and business logic are here. It is now over 1000 lines long.
+*   : Defines all database models. Changes here are required for the pending issue.
+
+**Areas that need refactoring**
+*   ** and **: The monolithic nature of these files is a major technical debt and poses a significant risk to future development. They desperately need to be broken down into smaller, manageable components and route files using Next.js's standard file-based routing patterns.
+
+**key api endpoints**
+*   : Fetches data for the admin dashboard charts.
+*   : Generates a PDF report of inspections for a given date range.
+*   : Saves the inspector's current category and question index.
+*   : **(NEEDS TO BE CREATED)** For updating a completed inspection.
+
+**Critical Info for New Agent**
+*   **Highest Priority**: Your immediate task is to implement the missing backend logic for the Edit Completed Inspection feature. Do not proceed with any other task until this is done. This involves modifying the database schema (), running a migration, and adding the necessary endpoint and time-check logic in .
+*   **Code Structure**: Be extremely careful when editing  and . They are very large and complex, increasing the risk of introducing errors.
+*   **Language**: The user and the application UI are exclusively Turkish. All communication and UI text must be in Turkish.
+
+**documents and test reports created in this job**
+- None.
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **Msg 363**: Request to add the Edit Completed Inspection feature with a 6-hour time limit. (IN PROGRESS)
+2.  **Msg 338**: Request to fix the Resume Inspection flow and add previous/next question navigation. (COMPLETED)
+3.  **Msg 263**: Detailed request to fix the Pause/Resume logic by saving  to the database. (COMPLETED)
+4.  **Msg 218**: Request to fix the PDF export table layout and add a Pause () system for inspectors. (COMPLETED)
+5.  **Msg 149**: Request for a new Admin Reporting page (charts, PDF export), a scroll reset UX fix, and improvements to the inspector's workflow. (COMPLETED)
+6.  **Msg 116**: Critical request to implement a definitive fix for Turkish characters in PDF reports using font embedding. (COMPLETED)
+7.  **Msg 72**: Critical revision request for a complete PDF report redesign (layout, text, styling) and UI fixes (header/footer centering). (COMPLETED)
+8.  **Msg 5**: User confirms priorities for the session: Admin panel, Inspector panel, and Report system. (COMPLETED)
+9.  **Msg 101**: User confirms to continue with the proposed plan.
+10. **Msg 71**: Agent finished the first core system implementation.
+
+**Project Health Check:**
+*   **Broken**:
+    *   The Edit Completed Inspection feature is non-functional due to a completely missing backend implementation.
+*   **Mocked**:
+    *   ParamPOS (Payment Gateway)
+    *   NetGSM (SMS Service)
+
+**3rd Party Integrations**
+*   **Meta Pixel**: For frontend event tracking.
+*   ****: For data visualization on the Admin Dashboard.
+*   ****: For generating PDF reports from HTML with full UTF-8 support.
+*   **ParamPOS (Planned)**: Payment processing.
+*   **NetGSM (Planned)**: SMS notifications.
+
+**Testing status**
+-   **Testing agent used after significant changes**: YES (Backend testing was run once).
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: None
+-   **Known regressions**: None
+
+**Credentials to test flow:**
+*   **Admin Login**:
+    *   **Phone**: 
+    *   **Password**: 
+*   **Inspector (Personel) Login**:
+    *   **Phone**: 
+    *   **Password**: 
+
+**What agent forgot to execute**
+The agent failed to implement the backend for the Edit Completed Inspection feature requested in message #363. Specifically, it forgot to:
+1.  Add the  field to the  model in .
+2.  Run yarn run v1.22.22
+$ /app/node_modules/.bin/prisma db push
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+Datasource "db": SQLite database "dev.db" at "file:./dev.db"
+
+The database is already in sync with the Prisma schema.
+
+Running generate... (Use --skip-generate to skip the generators)
+[2K[1A[2K[GRunning generate... - Prisma Client
+[2K[1A[2K[G✔ Generated Prisma Client (v5.22.0) to ./node_modules/@prisma/client in 434ms
+
+Done in 2.10s. to apply the schema change.
+3.  Update the  logic in the backend to set the  timestamp.
+4.  Create the backend endpoint () to handle saving edits, which must include the 6-hour time-limit validation logic.

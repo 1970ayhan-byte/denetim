@@ -3355,13 +3355,14 @@ function InspectionsTab({ token }) {
 }
 // Inspector Panel - Tablet Denetim Sistemi
 function InspectorPanel({ token, user }) {
-  const [view, setView] = useState('list') // list, detail, inspection
+  const [view, setView] = useState('list') // list, detail, inspection, edit
   const [inspections, setInspections] = useState([])
   const [selectedInspection, setSelectedInspection] = useState(null)
   const [categories, setCategories] = useState([])
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(0)
   const [answers, setAnswers] = useState({})
   const [resumePosition, setResumePosition] = useState(null)
+  const [editMode, setEditMode] = useState(false)
 
   useEffect(() => {
     loadInspections()
@@ -3374,7 +3375,31 @@ function InspectorPanel({ token, user }) {
     setInspections(await response.json())
   }
 
-  const startInspection = async (inspection, isResume = false) => {
+  // 6 saat düzenleme kontrolü
+  const isEditable = (completedAt) => {
+    if (!completedAt) return false
+    const now = new Date()
+    const completedTime = new Date(completedAt)
+    const diffHours = (now - completedTime) / (1000 * 60 * 60)
+    return diffHours <= 6
+  }
+
+  // Kalan süreyi hesapla
+  const getRemainingTime = (completedAt) => {
+    if (!completedAt) return null
+    const completedTime = new Date(completedAt)
+    const deadline = new Date(completedTime.getTime() + 6 * 60 * 60 * 1000)
+    const now = new Date()
+    const diffMs = deadline - now
+    if (diffMs <= 0) return null
+    
+    const hours = Math.floor(diffMs / (1000 * 60 * 60))
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+    return `${hours}s ${minutes}dk kaldı`
+  }
+
+  // Düzenleme moduna geç
+  const startEditMode = async (inspection) => {
     try {
       const response = await fetch('/api/inspector/inspection/start', {
         method: 'POST',
@@ -3388,20 +3413,56 @@ function InspectorPanel({ token, user }) {
       const data = await response.json()
       setSelectedInspection(data.inspection)
       setCategories(data.categories)
+      setAnswers(data.answersMap || {})
+      setEditMode(true)
+      setView('edit')
+      sonnerToast.success('Düzenleme modu açıldı')
+    } catch (error) {
+      sonnerToast.error('Düzenleme başlatılamadı')
+    }
+  }
+
+  const startInspection = async (inspection, isResume = false) => {
+    try {
+      const response = await fetch('/api/inspector/inspection/start', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ 
+          inspectionId: inspection.id,
+          findFirstUnanswered: isResume  // Backend'de ilk cevaplanmamış soruyu bulsun
+        })
+      })
+      
+      const data = await response.json()
+      setSelectedInspection(data.inspection)
+      setCategories(data.categories)
       
       // Set answers from response
       setAnswers(data.answersMap || {})
       
-      // Resume from saved position
-      if (isResume && data.inspection.status === 'in_progress') {
-        const savedCatIndex = data.inspection.currentCategoryIndex || 0
-        const savedQIndex = data.inspection.currentQuestionIndex || 0
-        setCurrentCategoryIndex(savedCatIndex)
+      // Resume from saved/calculated position
+      if (isResume && (inspection.status === 'in_progress' || data.inspection.status === 'in_progress')) {
+        const resumeCatIndex = data.inspection.currentCategoryIndex || 0
+        const resumeQIndex = data.inspection.currentQuestionIndex || 0
+        setCurrentCategoryIndex(resumeCatIndex)
         setResumePosition({
-          categoryIndex: savedCatIndex,
-          questionIndex: savedQIndex
+          categoryIndex: resumeCatIndex,
+          questionIndex: resumeQIndex
         })
-        sonnerToast.success(`Kaldığınız yerden devam ediliyor (Kategori ${savedCatIndex + 1}, Soru ${savedQIndex + 1})`)
+        
+        // Show detailed resume info
+        const resumeInfo = data.resumeInfo
+        if (resumeInfo) {
+          sonnerToast.success(
+            `Kaldığınız yerden devam ediliyor\n${resumeInfo.totalAnswered}/${resumeInfo.totalQuestions} soru cevaplandı`,
+            { duration: 4000 }
+          )
+        } else {
+          sonnerToast.success(`Kategori ${resumeCatIndex + 1}, Soru ${resumeQIndex + 1}'den devam ediliyor`)
+        }
       } else {
         setCurrentCategoryIndex(0)
         setResumePosition(null)
@@ -3410,6 +3471,7 @@ function InspectorPanel({ token, user }) {
       
       setView('inspection')
     } catch (error) {
+      console.error('Start inspection error:', error)
       sonnerToast.error('Hata oluştu')
     }
   }
@@ -3427,7 +3489,7 @@ function InspectorPanel({ token, user }) {
     return null
   }
 
-  const saveAnswer = async (questionId, answer, note = '', photos = []) => {
+  const saveAnswer = async (questionId, answer, note = '', photos = [], catIndex = null, qIndex = null) => {
     try {
       await fetch('/api/inspector/inspection/answer', {
         method: 'POST',
@@ -3440,7 +3502,10 @@ function InspectorPanel({ token, user }) {
           questionId,
           answer,
           note,
-          photos
+          photos,
+          // Include position for autosave
+          currentCategoryIndex: catIndex,
+          currentQuestionIndex: qIndex
         })
       })
       
@@ -3449,7 +3514,7 @@ function InspectorPanel({ token, user }) {
         [questionId]: { answer, note, photos }
       })
       
-      sonnerToast.success('Cevap kaydedildi')
+      // Silent save - no toast for autosave
     } catch (error) {
       console.error('Save error:', error)
       sonnerToast.error('Kaydetme hatası')
@@ -3508,6 +3573,22 @@ function InspectorPanel({ token, user }) {
       saveProgress={saveProgress}
       completeInspection={completeInspection}
       onCancel={() => setView('list')}
+      token={token}
+    />
+  }
+
+  // Edit mode - Kategori bazlı düzenleme
+  if (view === 'edit' && selectedInspection && categories.length > 0) {
+    return <InspectionEditMode 
+      inspection={selectedInspection}
+      categories={categories}
+      answers={answers}
+      setAnswers={setAnswers}
+      onCancel={() => {
+        setView('list')
+        setEditMode(false)
+        loadInspections()
+      }}
       token={token}
     />
   }
@@ -3583,10 +3664,26 @@ function InspectorPanel({ token, user }) {
                           </Button>
                         )}
                         {insp.status === 'completed' && (
-                          <Button className="w-full" variant="outline" disabled>
-                            <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Tamamlandı
-                          </Button>
+                          <div className="space-y-2">
+                            <Button className="w-full" variant="outline" disabled>
+                              <CheckCircle2 className="h-4 w-4 mr-2" />
+                              Tamamlandı
+                            </Button>
+                            {isEditable(insp.completedAt) && (
+                              <div>
+                                <Button 
+                                  className="w-full bg-amber-500 hover:bg-amber-600 text-white" 
+                                  onClick={() => startEditMode(insp)}
+                                >
+                                  <Edit2 className="h-4 w-4 mr-2" />
+                                  Düzenle
+                                </Button>
+                                <p className="text-xs text-center text-amber-600 mt-1">
+                                  ⏱️ {getRemainingTime(insp.completedAt)}
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -3666,13 +3763,21 @@ function InspectionFlow({
     }
   }, [currentQuestion, answers])
 
-  // Autosave when answer changes (debounced)
+  // Autosave when answer changes (debounced) - also saves position
   useEffect(() => {
     if (currentQuestion && localAnswer) {
       const timer = setTimeout(async () => {
         setAutoSaving(true)
         try {
-          await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+          // Save answer with current position
+          await saveAnswer(
+            currentQuestion.id, 
+            localAnswer, 
+            localNote, 
+            localPhotos,
+            currentCategoryIndex,
+            currentQuestionIndex
+          )
         } catch (e) {
           console.error('Autosave failed:', e)
         }
@@ -3680,7 +3785,7 @@ function InspectionFlow({
       }, 2000) // 2 second debounce
       return () => clearTimeout(timer)
     }
-  }, [localAnswer])
+  }, [localAnswer, localNote, currentCategoryIndex, currentQuestionIndex])
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -3712,14 +3817,13 @@ function InspectionFlow({
       return
     }
 
-    await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
-
     let nextCatIndex = currentCategoryIndex
     let nextQIndex = currentQuestionIndex + 1
 
     if (isLastQuestion) {
       if (isLastCategory) {
-        // Son soru, son kategori - "Denetimi Bitir" dialogu göster
+        // Son soru, son kategori - önce kaydet, sonra "Denetimi Bitir" dialogu göster
+        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
         setShowFinishDialog(true)
         return
       } else {
@@ -3731,70 +3835,40 @@ function InspectionFlow({
         
         if (nextCatIndex >= categories.length) {
           // No more categories with questions
+          await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
           setShowFinishDialog(true)
           return
         }
         
         nextQIndex = 0
-        setCurrentCategoryIndex(nextCatIndex)
-        setCurrentQuestionIndex(0)
       }
-    } else {
-      // Sonraki soruya geç
-      setCurrentQuestionIndex(nextQIndex)
     }
 
-    // Save progress
-    try {
-      await fetch('/api/inspector/inspection/progress', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify({
-          inspectionId: inspection.id,
-          currentCategoryIndex: nextCatIndex,
-          currentQuestionIndex: nextQIndex
-        })
-      })
-    } catch (e) {
-      console.error('Progress save failed:', e)
+    // Save current answer with next position
+    await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, nextCatIndex, nextQIndex)
+    
+    // Navigate to next question
+    if (isLastQuestion && nextCatIndex !== currentCategoryIndex) {
+      setCurrentCategoryIndex(nextCatIndex)
+      setCurrentQuestionIndex(0)
+    } else {
+      setCurrentQuestionIndex(nextQIndex)
     }
 
     // Reset local state
     setLocalAnswer('')
     setLocalNote('')
     setLocalPhotos([])
+    
+    sonnerToast.success('Cevap kaydedildi', { duration: 1500 })
   }
 
   const handlePrevious = async () => {
-    // Save current answer before navigating
-    if (localAnswer && currentQuestion) {
-      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
-    }
+    let newCatIndex = currentCategoryIndex
+    let newQIndex = currentQuestionIndex
     
     if (currentQuestionIndex > 0) {
-      const newQIndex = currentQuestionIndex - 1
-      setCurrentQuestionIndex(newQIndex)
-      
-      // Save progress
-      try {
-        await fetch('/api/inspector/inspection/progress', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}` 
-          },
-          body: JSON.stringify({
-            inspectionId: inspection.id,
-            currentCategoryIndex,
-            currentQuestionIndex: newQIndex
-          })
-        })
-      } catch (e) {
-        console.error('Progress save failed:', e)
-      }
+      newQIndex = currentQuestionIndex - 1
     } else if (currentCategoryIndex > 0) {
       // Find previous category with questions
       let prevCatIndex = currentCategoryIndex - 1
@@ -3803,29 +3877,22 @@ function InspectionFlow({
       }
       
       if (prevCatIndex >= 0) {
-        const newQIndex = categories[prevCatIndex].questions.length - 1
-        setCurrentCategoryIndex(prevCatIndex)
-        setCurrentQuestionIndex(newQIndex)
-        
-        // Save progress
-        try {
-          await fetch('/api/inspector/inspection/progress', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}` 
-            },
-            body: JSON.stringify({
-              inspectionId: inspection.id,
-              currentCategoryIndex: prevCatIndex,
-              currentQuestionIndex: newQIndex
-            })
-          })
-        } catch (e) {
-          console.error('Progress save failed:', e)
-        }
+        newCatIndex = prevCatIndex
+        newQIndex = categories[prevCatIndex].questions.length - 1
       }
     }
+    
+    // Save current answer with new position before navigating
+    if (localAnswer && currentQuestion) {
+      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, newCatIndex, newQIndex)
+    } else {
+      // Just save progress position
+      await saveProgress(newCatIndex, newQIndex)
+    }
+    
+    // Navigate
+    setCurrentCategoryIndex(newCatIndex)
+    setCurrentQuestionIndex(newQIndex)
   }
 
   const handleFinishInspection = async () => {
@@ -3836,24 +3903,13 @@ function InspectionFlow({
   // ARA VER - Kaydet ve ana sayfaya dön
   const handlePause = async () => {
     try {
-      // Save current answer if exists
+      // Save current answer with position if exists
       if (localAnswer && currentQuestion) {
-        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
+      } else {
+        // Just save progress position
+        await saveProgress(currentCategoryIndex, currentQuestionIndex)
       }
-      
-      // Save progress position
-      await fetch('/api/inspector/inspection/progress', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}` 
-        },
-        body: JSON.stringify({
-          inspectionId: inspection.id,
-          currentCategoryIndex,
-          currentQuestionIndex
-        })
-      })
       
       sonnerToast.success('Denetim kaydedildi. Kaldığınız yerden devam edebilirsiniz.')
       onCancel()
@@ -4039,9 +4095,9 @@ function InspectionFlow({
           )}
           {isLastQuestion && isLastCategory ? (
             <Button 
-              onClick={() => {
+              onClick={async () => {
                 if (localAnswer) {
-                  saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos)
+                  await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
                 }
                 setShowFinishDialog(true)
               }}
@@ -4107,3 +4163,276 @@ function InspectionFlow({
     </div>
   )
 }
+
+
+// Inspection Edit Mode - Tamamlanmış denetimi düzenleme
+function InspectionEditMode({ inspection, categories, answers, setAnswers, onCancel, token }) {
+  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [selectedQuestion, setSelectedQuestion] = useState(null)
+  const [localAnswer, setLocalAnswer] = useState('')
+  const [localNote, setLocalNote] = useState('')
+  const [localPhotos, setLocalPhotos] = useState([])
+  const [saving, setSaving] = useState(false)
+
+  // Kategorileri soru sayısına göre filtrele
+  const categoriesWithQuestions = categories.filter(cat => cat.questions?.length > 0)
+
+  // Soru seçildiğinde mevcut cevabı yükle
+  useEffect(() => {
+    if (selectedQuestion) {
+      const savedAnswer = answers[selectedQuestion.id]
+      setLocalAnswer(savedAnswer?.answer || '')
+      setLocalNote(savedAnswer?.note || '')
+      setLocalPhotos(savedAnswer?.photos || [])
+    }
+  }, [selectedQuestion, answers])
+
+  // Cevabı kaydet
+  const saveAnswer = async () => {
+    if (!selectedQuestion || !localAnswer) {
+      sonnerToast.error('Lütfen bir cevap seçin')
+      return
+    }
+    
+    setSaving(true)
+    try {
+      const response = await fetch('/api/inspector/inspection/answer', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          inspectionId: inspection.id,
+          questionId: selectedQuestion.id,
+          answer: localAnswer,
+          note: localNote,
+          photos: localPhotos
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Kaydetme hatası')
+      }
+      
+      // Update local state
+      setAnswers({
+        ...answers,
+        [selectedQuestion.id]: { answer: localAnswer, note: localNote, photos: localPhotos }
+      })
+      
+      sonnerToast.success('Cevap güncellendi')
+      setSelectedQuestion(null)
+    } catch (error) {
+      sonnerToast.error(error.message || 'Kaydetme hatası')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Kategori listesi
+  if (!selectedCategory) {
+    return (
+      <div className="min-h-screen bg-muted/20 py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold">Denetim Düzenleme</h1>
+              <p className="text-muted-foreground">{inspection.schoolName}</p>
+            </div>
+            <Button variant="outline" onClick={onCancel}>
+              <X className="h-4 w-4 mr-2" />
+              Kapat
+            </Button>
+          </div>
+          
+          <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg mb-6">
+            <p className="text-sm text-amber-800 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <strong>Düzenleme Modu:</strong> Sadece cevap, not ve fotoğraf değiştirilebilir. Değişiklikler rapora yansır.
+            </p>
+          </div>
+          
+          <h2 className="text-lg font-semibold mb-4">Kategori Seçin</h2>
+          <div className="grid gap-3">
+            {categoriesWithQuestions.map((cat, index) => {
+              const answeredInCategory = cat.questions.filter(q => answers[q.id]).length
+              const totalInCategory = cat.questions.length
+              
+              return (
+                <Card 
+                  key={cat.id} 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center font-semibold">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <h3 className="font-medium">{cat.name}</h3>
+                        <p className="text-sm text-muted-foreground">{totalInCategory} soru</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="outline">
+                        {answeredInCategory} / {totalInCategory} cevaplandı
+                      </Badge>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Soru listesi
+  if (selectedCategory && !selectedQuestion) {
+    return (
+      <div className="min-h-screen bg-muted/20 py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <Button variant="ghost" onClick={() => setSelectedCategory(null)} className="mb-2">
+                ← Kategorilere Dön
+              </Button>
+              <h1 className="text-2xl font-bold">{selectedCategory.name}</h1>
+              <p className="text-muted-foreground">{inspection.schoolName}</p>
+            </div>
+          </div>
+          
+          <h2 className="text-lg font-semibold mb-4">Soru Seçin</h2>
+          <div className="grid gap-3">
+            {selectedCategory.questions.map((question, index) => {
+              const savedAnswer = answers[question.id]
+              
+              return (
+                <Card 
+                  key={question.id} 
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setSelectedQuestion(question)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="bg-muted rounded-full w-8 h-8 flex items-center justify-center font-semibold text-sm">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium line-clamp-2">{question.question}</p>
+                          {savedAnswer && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge className={
+                                savedAnswer.answer === 'uygun' ? 'bg-green-100 text-green-800' :
+                                savedAnswer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }>
+                                {savedAnswer.answer === 'uygun' ? 'UYGUN' :
+                                 savedAnswer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
+                              </Badge>
+                              {savedAnswer.note && (
+                                <span className="text-xs text-muted-foreground">📝 Not var</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Soru düzenleme
+  return (
+    <div className="min-h-screen bg-muted/20 py-8">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <div className="mb-6">
+          <Button variant="ghost" onClick={() => setSelectedQuestion(null)} className="mb-2">
+            ← Sorulara Dön
+          </Button>
+          <h1 className="text-xl font-bold">{selectedCategory.name}</h1>
+          <p className="text-muted-foreground">{inspection.schoolName}</p>
+        </div>
+        
+        <Card>
+          <CardContent className="p-6">
+            {/* Soru */}
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold mb-2">{selectedQuestion.question}</h2>
+              {selectedQuestion.regulationText && (
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-3 text-sm">
+                  <strong className="text-blue-900">Yönetmelik:</strong>
+                  <p className="text-blue-800 mt-1">{selectedQuestion.regulationText}</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Cevap Seçenekleri */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <Button
+                variant={localAnswer === 'uygun' ? 'default' : 'outline'}
+                className={`h-14 ${localAnswer === 'uygun' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                onClick={() => setLocalAnswer('uygun')}
+              >
+                <CheckCircle2 className="h-5 w-5 mr-2" />
+                UYGUN
+              </Button>
+              <Button
+                variant={localAnswer === 'uygun_degil' ? 'default' : 'outline'}
+                className={`h-14 ${localAnswer === 'uygun_degil' ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                onClick={() => setLocalAnswer('uygun_degil')}
+              >
+                <XCircle className="h-5 w-5 mr-2" />
+                UYGUN DEĞİL
+              </Button>
+              <Button
+                variant={localAnswer === 'goreceli' ? 'default' : 'outline'}
+                className={`h-14 ${localAnswer === 'goreceli' ? 'bg-yellow-600 hover:bg-yellow-700' : ''}`}
+                onClick={() => setLocalAnswer('goreceli')}
+              >
+                <AlertCircle className="h-5 w-5 mr-2" />
+                GÖRECELİ
+              </Button>
+            </div>
+            
+            {/* Not */}
+            <div className="mb-6">
+              <Label>Not (Opsiyonel)</Label>
+              <Textarea
+                value={localNote}
+                onChange={(e) => setLocalNote(e.target.value)}
+                placeholder="Eksiklik veya öneri notu ekleyin..."
+                rows={3}
+                className="mt-2"
+              />
+            </div>
+            
+            {/* Kaydet Butonu */}
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setSelectedQuestion(null)} className="flex-1">
+                İptal
+              </Button>
+              <Button onClick={saveAnswer} disabled={saving || !localAnswer} className="flex-1">
+                {saving ? 'Kaydediliyor...' : 'Kaydet'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
