@@ -444,6 +444,18 @@ metadata:
         agent: "testing"
         comment: "✅ SAVE PROGRESS (PAUSE) WORKING PERFECTLY! POST /api/inspector/inspection/progress updates inspection's currentCategoryIndex and currentQuestionIndex without saving answers. Allows inspectors to pause and resume at exact position. Tested position save to Category[1], Question[0] with success message 'İlerleme kaydedildi'. Essential for inspection workflow management."
 
+  - task: "6-Hour Edit Window Validation for Completed Inspections"
+    implemented: true
+    working: true
+    file: "/app/app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ 6-HOUR EDIT WINDOW VALIDATION WORKING PERFECTLY! POST /api/inspector/inspection/answer properly validates edit window for completed inspections. Server-side validation: (now - completedAt) / (1000 * 60 * 60) > 6 hours = 403 Forbidden. Returns Turkish error message 'Düzenleme süresi doldu. Tamamlanmış denetimlerde 6 saat içinde düzenleme yapılabilir.' with expiredAt timestamp. Only applies to completed inspections (status='completed' + completedAt set). In-progress inspections have no restrictions. Code location: lines 785-797. COMPREHENSIVE TESTING: 3/3 tests passed (✅ Edit rejection after 6 hours, ✅ No restriction for in-progress, ✅ Correct error format). Time calculation verified: 25.79 hours difference correctly triggered validation."
+
 test_plan:
   current_focus:
     - "Core Inspection Flow APIs - COMPLETED"
@@ -462,3 +474,5 @@ agent_communication:
     message: "🚀 BACKEND API TESTING COMPLETED - PERFECT RESULTS! Comprehensive testing of Core Inspection and Reporting System APIs completed with 11/11 tests passing (100%). All critical backend APIs are working perfectly: ✅ Authentication (Admin/Inspector login), ✅ Admin Inspection Management (List inspections, Assign inspector), ✅ Inspector Flow (List assigned, Start inspection, Save answers, Complete inspection), ✅ Report System (Full reports, Update answer notes, PDF generation). System tested with existing data (2 inspections) and full end-to-end workflow verification successful. All APIs properly handle authentication, data validation, and return expected responses. NO CRITICAL ISSUES FOUND."
   - agent: "testing"
     message: "🎯 CORE INSPECTION FLOW API TESTING COMPLETED - 100% SUCCESS! Detailed testing of specific inspection flow APIs requested in review: ✅ Start Inspection with Resume Logic (findFirstUnanswered functionality), ✅ Save Answer with Position Tracking (autosave with currentCategoryIndex/currentQuestionIndex), ✅ Save Progress/Pause (position-only updates), ✅ Complete Inspection (safe handling). All 8/8 tests PASSED. Resume logic correctly finds first unanswered question, position tracking works perfectly (Cat[1],Q[0] → Cat[1],Q[1]), autosave functionality verified. Tested with existing inspection data (10 categories, 3 questions, 100% complete). NO CRITICAL ISSUES - ALL CORE APIS WORKING AS SPECIFIED."
+  - agent: "testing"
+    message: "🔒 6-HOUR EDIT WINDOW VALIDATION TESTING COMPLETED - PERFECT IMPLEMENTATION! Comprehensive testing of 6-hour edit restriction for completed inspections completed with 3/3 tests PASSED (100%). VALIDATION CONFIRMED WORKING: ✅ Server-side validation in /inspector/inspection/answer endpoint (lines 785-797), ✅ Proper time calculation: (now - completedAt) / (1000 * 60 * 60) > 6 hours, ✅ Returns 403 Forbidden with Turkish error message 'Düzenleme süresi doldu. Tamamlanmış denetimlerde 6 saat içinde düzenleme yapılabilir.', ✅ Includes expiredAt timestamp, ✅ Only applies to completed inspections (not in-progress/pending), ✅ Test verified 25.79 hours difference correctly triggered validation. SECURITY FEATURE WORKING AS SPECIFIED!"

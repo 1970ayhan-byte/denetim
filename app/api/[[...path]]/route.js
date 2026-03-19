@@ -773,6 +773,29 @@ async function handleRoute(request, { params }) {
       
       const { inspectionId, questionId, answer, note, photos, currentCategoryIndex, currentQuestionIndex } = await request.json()
       
+      // Get inspection to check status and edit window
+      const inspection = await prisma.inspection.findUnique({
+        where: { id: inspectionId }
+      })
+      
+      if (!inspection) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
+      
+      // Check if inspection is completed - enforce 6-hour edit window
+      if (inspection.status === 'completed' && inspection.completedAt) {
+        const now = new Date()
+        const completedTime = new Date(inspection.completedAt)
+        const diffHours = (now - completedTime) / (1000 * 60 * 60)
+        
+        if (diffHours > 6) {
+          return handleCORS(NextResponse.json({ 
+            error: 'Düzenleme süresi doldu. Tamamlanmış denetimlerde 6 saat içinde düzenleme yapılabilir.',
+            expiredAt: new Date(completedTime.getTime() + 6 * 60 * 60 * 1000).toISOString()
+          }, { status: 403 }))
+        }
+      }
+      
       // Check if answer exists
       const existing = await prisma.inspectionAnswer.findFirst({
         where: { inspectionId, questionId }
