@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -3765,11 +3765,34 @@ function InspectionFlow({
   const [autoSaving, setAutoSaving] = useState(false)
   const [showFinishDialog, setShowFinishDialog] = useState(false)
 
-  const currentCategory = categories[currentCategoryIndex]
-  const currentQuestion = currentCategory?.questions?.[currentQuestionIndex]
-  const totalQuestions = currentCategory?.questions?.length || 0
-  const isLastQuestion = currentQuestionIndex === totalQuestions - 1
-  const isLastCategory = currentCategoryIndex === categories.length - 1
+  const currentCategory = categories[currentCategoryIndex] || categories[categories.length - 1]
+  const categoryQuestions = currentCategory?.questions || []
+  const safeQuestionIndex = Math.min(currentQuestionIndex, categoryQuestions.length - 1)
+  const currentQuestion = categoryQuestions[safeQuestionIndex >= 0 ? safeQuestionIndex : 0]
+  const totalQuestions = categoryQuestions.length
+  const isLastQuestion = safeQuestionIndex === totalQuestions - 1
+  const isLastCategory = currentCategoryIndex >= categories.length - 1
+
+  // Calculate if all questions are answered
+  const allQuestionsAnswered = useMemo(() => {
+    if (!categories || categories.length === 0) return false
+    let totalQ = 0
+    let answeredQ = 0
+    categories.forEach(cat => {
+      (cat.questions || []).forEach(q => {
+        totalQ++
+        if (answers[q.id]) answeredQ++
+      })
+    })
+    return totalQ > 0 && answeredQ >= totalQ
+  }, [categories, answers])
+
+  // If all questions answered and we're at the end, show finish dialog
+  useEffect(() => {
+    if (allQuestionsAnswered && !currentQuestion && !showFinishDialog) {
+      setShowFinishDialog(true)
+    }
+  }, [allQuestionsAnswered, currentQuestion, showFinishDialog])
 
   // Skip categories with no questions
   useEffect(() => {
@@ -3961,6 +3984,52 @@ function InspectionFlow({
   // Count answered questions
   const totalAllQuestions = categories.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
   const answeredCount = Object.keys(answers).length
+
+  // If all questions are answered and no current question, show only the finish dialog
+  if (allQuestionsAnswered && !currentQuestion) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex items-center justify-center">
+        <Dialog open={true}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                Denetimi Tamamla
+              </DialogTitle>
+              <DialogDescription>
+                Bu işlem geri alınamaz. Denetimi tamamladıktan sonra cevaplar düzenlenemez.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+              <h4 className="font-semibold">Özet</h4>
+              <p className="text-sm">Kurum: <span className="font-medium">{inspection.schoolName}</span></p>
+              <p className="text-sm">Cevaplanan Soru: <span className="font-medium">{answeredCount} / {totalAllQuestions}</span></p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={onCancel}>
+                Geri Dön
+              </Button>
+              <Button onClick={handleFinishInspection} className="bg-green-600 hover:bg-green-700">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Denetimi Tamamla
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }
+
+  // Safety check - if no current question but not all answered, go to first unanswered
+  if (!currentQuestion) {
+    return (
+      <div className="min-h-screen bg-muted/20 flex items-center justify-center">
+        <div className="text-center">
+          <p>Yükleniyor...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-muted/20">
