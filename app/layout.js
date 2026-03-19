@@ -1,6 +1,9 @@
 import './globals.css'
 import Script from 'next/script'
 
+// Base URL for metadata (uses env variable)
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+
 export const metadata = {
   title: {
     default: 'Anaokulu Denetim Hizmeti | MEB Denetim Hazırlık - Sarımeşe Danışmanlık',
@@ -16,14 +19,14 @@ export const metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL('https://www.anaokuludenetim.com'),
+  metadataBase: new URL(baseUrl),
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: 'Anaokulu Denetim Hizmeti | MEB Denetim Hazırlık',
     description: 'MEB anaokulu denetimine hazır mısınız? Kuruluş standartları, yangın güvenliği denetimlerine profesyonel hazırlık. Eksikleri önceden tespit edin.',
-    url: 'https://www.anaokuludenetim.com',
+    url: baseUrl,
     siteName: 'Anaokulu Denetim',
     images: [
       {
@@ -64,9 +67,6 @@ export default function RootLayout({ children }) {
       <head>
         <script dangerouslySetInnerHTML={{__html:'window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);'}} />
         
-        {/* Canonical URL */}
-        <link rel="canonical" href="https://www.anaokuludenetim.com" />
-        
         {/* Favicon */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -101,8 +101,8 @@ export default function RootLayout({ children }) {
               '@type': 'Organization',
               name: 'Sarımeşe Danışmanlık',
               description: 'Anaokulu MEB denetim hazırlık hizmeti',
-              url: 'https://www.anaokuludenetim.com',
-              logo: 'https://www.anaokuludenetim.com/logo.png',
+              url: baseUrl,
+              logo: `${baseUrl}/logo.png`,
               contactPoint: {
                 '@type': 'ContactPoint',
                 telephone: '+90-555-000-0000',
@@ -127,7 +127,7 @@ export default function RootLayout({ children }) {
               '@type': 'ProfessionalService',
               name: 'Anaokulu Denetim Hizmeti',
               description: 'MEB anaokulu denetim hazırlık danışmanlığı',
-              url: 'https://www.anaokuludenetim.com',
+              url: baseUrl,
               priceRange: '₺₺',
               areaServed: {
                 '@type': 'Country',

@@ -400,7 +400,8 @@ async function handleRoute(request, { params }) {
       
       const payments = await prisma.payment.findMany({
         orderBy: { createdAt: 'desc' },
-        include: { package: true, city: true }
+        include: { package: true, city: true },
+        take: 500 // Limit for performance
       })
       return handleCORS(NextResponse.json(payments))
     }
@@ -420,7 +421,8 @@ async function handleRoute(request, { params }) {
           package: true, 
           inspector: { select: { name: true, phone: true } },
           payment: true
-        }
+        },
+        take: 500 // Limit for performance
       })
       return handleCORS(NextResponse.json(inspections))
     }
@@ -450,7 +452,8 @@ async function handleRoute(request, { params }) {
       }
       
       const news = await prisma.news.findMany({
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
+        take: 200 // Limit for performance
       })
       return handleCORS(NextResponse.json(news))
     }

@@ -2,7 +2,7 @@
 // Returns XML sitemap for SEO
 
 export async function GET() {
-  const baseUrl = 'https://www.anaokuludenetim.com'
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
   
   // Static pages
   const staticPages = [
