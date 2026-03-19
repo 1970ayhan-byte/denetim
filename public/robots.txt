@@ -1,0 +1,15 @@
+# Robots.txt for www.anaokuludenetim.com
+# Anaokulu Denetim Hizmeti - Sarımeşe Danışmanlık
+
+User-agent: *
+Allow: /
+
+# Disallow admin and API routes
+Disallow: /api/
+Disallow: /admin/
+
+# Sitemap
+Sitemap: https://www.anaokuludenetim.com/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1

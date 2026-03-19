@@ -164,7 +164,7 @@ export default function App() {
             </div>
           </div>
           <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-            © 2025 Sarımeşe Danışmanlık. Tüm hakları saklıdır.
+            © {new Date().getFullYear()} Sarımeşe Danışmanlık. Tüm hakları saklıdır.
           </div>
         </div>
       </footer>
@@ -4282,6 +4282,7 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
   const [localNote, setLocalNote] = useState('')
   const [localPhotos, setLocalPhotos] = useState([])
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   // Kategorileri soru sayısına göre filtrele
   const categoriesWithQuestions = categories.filter(cat => cat.questions?.length > 0)
@@ -4295,6 +4296,43 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
       setLocalPhotos(savedAnswer?.photos || [])
     }
   }, [selectedQuestion, answers])
+
+  // Fotoğraf yükleme
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('photo', file)
+    
+    try {
+      const response = await fetch('/api/inspector/inspection/upload-photo', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      })
+      const data = await response.json()
+      if (data.url) {
+        setLocalPhotos([...localPhotos, data.url])
+        sonnerToast.success('Fotoğraf yüklendi')
+      } else {
+        throw new Error('URL alınamadı')
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      sonnerToast.error('Fotoğraf yüklenemedi')
+    } finally {
+      setUploading(false)
+      e.target.value = '' // Reset input
+    }
+  }
+
+  // Fotoğraf silme
+  const handlePhotoDelete = (index) => {
+    setLocalPhotos(localPhotos.filter((_, i) => i !== index))
+    sonnerToast.success('Fotoğraf kaldırıldı')
+  }
 
   // Cevabı kaydet
   const saveAnswer = async () => {
@@ -4420,6 +4458,7 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
           <div className="grid gap-3">
             {selectedCategory.questions.map((question, index) => {
               const savedAnswer = answers[question.id]
+              const photoCount = savedAnswer?.photos?.length || 0
               
               return (
                 <Card 
@@ -4436,7 +4475,7 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
                         <div className="flex-1">
                           <p className="font-medium line-clamp-2">{question.question}</p>
                           {savedAnswer && (
-                            <div className="mt-2 flex items-center gap-2">
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <Badge className={
                                 savedAnswer.answer === 'uygun' ? 'bg-green-100 text-green-800' :
                                 savedAnswer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' :
@@ -4447,6 +4486,9 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
                               </Badge>
                               {savedAnswer.note && (
                                 <span className="text-xs text-muted-foreground">📝 Not var</span>
+                              )}
+                              {photoCount > 0 && (
+                                <span className="text-xs text-muted-foreground">📷 {photoCount} fotoğraf</span>
                               )}
                             </div>
                           )}
@@ -4527,6 +4569,60 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
                 rows={3}
                 className="mt-2"
               />
+            </div>
+            
+            {/* Fotoğraf Yükleme */}
+            <div className="mb-6">
+              <Label className="mb-2 block">Fotoğraflar</Label>
+              
+              {/* Mevcut Fotoğraflar */}
+              {localPhotos.length > 0 && (
+                <div className="grid grid-cols-3 gap-3 mb-4">
+                  {localPhotos.map((photo, index) => (
+                    <div key={index} className="relative group">
+                      <img 
+                        src={photo} 
+                        alt={`Fotoğraf ${index + 1}`} 
+                        className="w-full aspect-square object-cover rounded-lg border"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handlePhotoDelete(index)}
+                        className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Yükleme Butonu */}
+              <div className="flex gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                  id="edit-photo-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={uploading}
+                  onClick={() => document.getElementById('edit-photo-upload').click()}
+                  className="flex items-center gap-2"
+                >
+                  <Camera className="h-4 w-4" />
+                  {uploading ? 'Yükleniyor...' : localPhotos.length > 0 ? 'Yeni Fotoğraf Ekle' : 'Fotoğraf Yükle'}
+                </Button>
+                {localPhotos.length > 0 && (
+                  <span className="text-sm text-muted-foreground self-center">
+                    {localPhotos.length} fotoğraf
+                  </span>
+                )}
+              </div>
             </div>
             
             {/* Kaydet Butonu */}
