@@ -1148,15 +1148,24 @@ function DashboardTab({ token }) {
         <html lang="tr">
         <head>
           <meta charset="UTF-8">
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+          <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
-            * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap');
+            
+            * { 
+              font-family: 'Noto Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important;
+              -webkit-font-smoothing: antialiased;
+            }
             body { padding: 20px; color: #333; font-size: 11px; }
             .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
-            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 20px; }
+            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 20px; font-weight: 700; }
             .header p { margin: 3px 0; color: #666; font-size: 10px; }
             .date-range { background: #f0f9ff; padding: 10px; border-radius: 6px; margin-bottom: 20px; text-align: center; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th { background: #1e40af; color: white; padding: 10px 8px; text-align: left; font-size: 10px; }
+            th { background: #1e40af; color: white; padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 600; }
             td { padding: 8px; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
             tr:nth-child(even) { background: #f9fafb; }
             .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 9px; color: #6b7280; }
@@ -1212,11 +1221,14 @@ function DashboardTab({ token }) {
       element.innerHTML = htmlContent
       document.body.appendChild(element)
       
+      // Font yüklenmesini bekle
+      await document.fonts.ready
+      
       await html2pdf().set({
         margin: 10,
         filename: `denetim_listesi_${exportDateRange.start}_${exportDateRange.end}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, allowTaint: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
       }).from(element).save()
       
@@ -2972,39 +2984,54 @@ function InspectionsTab({ token }) {
       
       const issueAnswers = (inspection.answers || []).filter(a => a.answer !== 'uygun')
       
-      // HTML içeriği oluştur
+      // HTML içeriği oluştur - Türkçe karakterler için Google Fonts ile DejaVu Sans kullanılıyor
       const htmlContent = `
         <!DOCTYPE html>
         <html lang="tr">
         <head>
           <meta charset="UTF-8">
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+          <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
-            * { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-            body { padding: 20px; color: #333; font-size: 12px; line-height: 1.5; }
+            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap');
+            
+            * { 
+              font-family: 'Noto Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important;
+              -webkit-font-smoothing: antialiased;
+            }
+            body { 
+              padding: 20px; 
+              color: #333; 
+              font-size: 12px; 
+              line-height: 1.5;
+              unicode-bidi: embed;
+            }
             .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
-            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 22px; }
+            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 22px; font-weight: 700; }
             .header p { margin: 3px 0; color: #666; font-size: 11px; }
             .info-box { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-            .info-box h3 { margin: 0 0 10px 0; color: #1e40af; font-size: 14px; }
+            .info-box h3 { margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700; }
             .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
             .info-item { font-size: 11px; }
-            .info-item strong { color: #1e40af; }
+            .info-item strong { color: #1e40af; font-weight: 600; }
             .intro-box { background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f59e0b; }
             .intro-box p { margin: 0 0 10px 0; font-size: 11px; }
             .intro-box .support { color: #92400e; font-style: italic; }
-            .section-title { color: #dc2626; font-size: 16px; font-weight: bold; margin: 20px 0 15px 0; }
+            .section-title { color: #dc2626; font-size: 16px; font-weight: 700; margin: 20px 0 15px 0; }
             .issue-card { background: #fff; border: 1px solid #e5e7eb; border-left: 4px solid #dc2626; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
-            .issue-title { color: #dc2626; font-weight: bold; font-size: 13px; margin-bottom: 10px; }
+            .issue-title { color: #dc2626; font-weight: 700; font-size: 13px; margin-bottom: 10px; }
             .issue-number { background: #fee2e2; color: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 8px; }
             .regulation-box { background: #eff6ff; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 11px; }
-            .regulation-box strong { color: #1e40af; }
+            .regulation-box strong { color: #1e40af; font-weight: 600; }
             .note-box { background: #f3f4f6; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 11px; }
             .penalty-box { background: #fef2f2; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; margin-top: 10px; font-size: 11px; }
-            .penalty-box strong { color: #991b1b; }
+            .penalty-box strong { color: #991b1b; font-weight: 600; }
             .success-box { background: #dcfce7; padding: 30px; border-radius: 8px; text-align: center; color: #166534; }
-            .success-box h3 { margin: 0; font-size: 16px; }
+            .success-box h3 { margin: 0; font-size: 16px; font-weight: 700; }
             .legal-box { background: #fefce8; border: 1px solid #fde047; padding: 15px; border-radius: 8px; margin-top: 25px; font-size: 10px; }
-            .legal-box strong { color: #854d0e; }
+            .legal-box strong { color: #854d0e; font-weight: 600; }
             .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 9px; color: #6b7280; }
           </style>
         </head>
@@ -3041,13 +3068,13 @@ function InspectionsTab({ token }) {
                 </div>
                 ${answer.question?.regulationText ? `
                   <div class="regulation-box">
-                    <strong>📜 Yönetmelik:</strong><br/>
+                    <strong>Yönetmelik:</strong><br/>
                     ${answer.question.regulationText}
                   </div>
                 ` : ''}
                 ${answer.note ? `
                   <div class="note-box">
-                    <strong>🗒️ Not:</strong><br/>
+                    <strong>Not:</strong><br/>
                     ${answer.note}
                   </div>
                 ` : ''}
@@ -3060,12 +3087,12 @@ function InspectionsTab({ token }) {
             `).join('')}
           ` : `
             <div class="success-box">
-              <h3>✅ Tüm kontroller uygun bulunmuştur!</h3>
+              <h3>Tüm kontroller uygun bulunmuştur!</h3>
             </div>
           `}
           
           <div class="legal-box">
-            <strong>⚠️ HUKUKİ UYARI:</strong>
+            <strong>HUKUKİ UYARI:</strong>
             <p style="margin: 8px 0 0 0;">Bu rapor yalnızca öneri niteliğindedir ve kurumun yasal sorumluluklarını ortadan kaldırmaz. Raporun yasal bir değeri bulunmamaktadır. Sadece bilgilendirme amaçlıdır.</p>
             <p style="margin: 8px 0 0 0;"><strong>SARIMEŞE DANIŞMANLIK</strong></p>
           </div>
@@ -3082,11 +3109,20 @@ function InspectionsTab({ token }) {
       element.innerHTML = htmlContent
       document.body.appendChild(element)
       
+      // Font yüklenmesini bekle
+      await document.fonts.ready
+      
       const opt = {
         margin: 10,
         filename: `denetim_raporu_${inspection.schoolName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          letterRendering: true,
+          logging: false,
+          allowTaint: true
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       }
       
