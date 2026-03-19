@@ -1149,23 +1149,18 @@ function DashboardTab({ token }) {
         <head>
           <meta charset="UTF-8">
           <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-          <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap');
-            
             * { 
-              font-family: 'Noto Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important;
-              -webkit-font-smoothing: antialiased;
+              font-family: Arial, Helvetica, 'Segoe UI', Tahoma, sans-serif;
+              box-sizing: border-box;
             }
             body { padding: 20px; color: #333; font-size: 11px; }
             .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
-            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 20px; font-weight: 700; }
+            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 20px; font-weight: bold; }
             .header p { margin: 3px 0; color: #666; font-size: 10px; }
-            .date-range { background: #f0f9ff; padding: 10px; border-radius: 6px; margin-bottom: 20px; text-align: center; }
+            .date-range { background: #f0f9ff; padding: 10px; border-radius: 6px; margin-bottom: 20px; text-align: center; border: 1px solid #bfdbfe; }
             table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th { background: #1e40af; color: white; padding: 10px 8px; text-align: left; font-size: 10px; font-weight: 600; }
+            th { background: #1e40af; color: white; padding: 10px 8px; text-align: left; font-size: 10px; font-weight: bold; }
             td { padding: 8px; border-bottom: 1px solid #e5e7eb; font-size: 10px; }
             tr:nth-child(even) { background: #f9fafb; }
             .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 9px; color: #6b7280; }
@@ -1199,7 +1194,7 @@ function DashboardTab({ token }) {
               ${data.map((insp, i) => `
                 <tr>
                   <td>${i + 1}</td>
-                  <td>${insp.schoolName}</td>
+                  <td>${insp.schoolName || ''}</td>
                   <td>${insp.schoolContact || '-'}</td>
                   <td>${insp.schoolPhone || '-'}</td>
                   <td>${insp.city?.name || '-'}</td>
@@ -1219,16 +1214,14 @@ function DashboardTab({ token }) {
       
       const element = document.createElement('div')
       element.innerHTML = htmlContent
+      element.style.width = '297mm' // A4 landscape width
       document.body.appendChild(element)
       
-      // Font yüklenmesini bekle
-      await document.fonts.ready
-      
       await html2pdf().set({
-        margin: 10,
+        margin: [10, 10, 10, 10],
         filename: `denetim_listesi_${exportDateRange.start}_${exportDateRange.end}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, allowTaint: true },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, logging: false, windowWidth: 1122 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
       }).from(element).save()
       
@@ -2984,54 +2977,50 @@ function InspectionsTab({ token }) {
       
       const issueAnswers = (inspection.answers || []).filter(a => a.answer !== 'uygun')
       
-      // HTML içeriği oluştur - Türkçe karakterler için Google Fonts ile DejaVu Sans kullanılıyor
+      // HTML içeriği oluştur - Türkçe karakterler için sistem fontları kullanılıyor
+      // Arial ve Helvetica Türkçe karakterleri destekler
       const htmlContent = `
         <!DOCTYPE html>
         <html lang="tr">
         <head>
           <meta charset="UTF-8">
           <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-          <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-          <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-            @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;700&display=swap');
-            
             * { 
-              font-family: 'Noto Sans', 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif !important;
+              font-family: Arial, Helvetica, 'Segoe UI', Tahoma, sans-serif;
               -webkit-font-smoothing: antialiased;
+              box-sizing: border-box;
             }
             body { 
               padding: 20px; 
               color: #333; 
               font-size: 12px; 
               line-height: 1.5;
-              unicode-bidi: embed;
             }
             .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 15px; }
-            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 22px; font-weight: 700; }
+            .header h1 { color: #1e40af; margin: 0 0 5px 0; font-size: 22px; font-weight: bold; }
             .header p { margin: 3px 0; color: #666; font-size: 11px; }
-            .info-box { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-            .info-box h3 { margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: 700; }
-            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-            .info-item { font-size: 11px; }
-            .info-item strong { color: #1e40af; font-weight: 600; }
+            .info-box { background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+            .info-box h3 { margin: 0 0 10px 0; color: #1e40af; font-size: 14px; font-weight: bold; }
+            .info-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+            .info-item { font-size: 11px; width: 48%; }
+            .info-item strong { color: #1e40af; font-weight: bold; }
             .intro-box { background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f59e0b; }
             .intro-box p { margin: 0 0 10px 0; font-size: 11px; }
             .intro-box .support { color: #92400e; font-style: italic; }
-            .section-title { color: #dc2626; font-size: 16px; font-weight: 700; margin: 20px 0 15px 0; }
+            .section-title { color: #dc2626; font-size: 16px; font-weight: bold; margin: 20px 0 15px 0; }
             .issue-card { background: #fff; border: 1px solid #e5e7eb; border-left: 4px solid #dc2626; border-radius: 8px; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
-            .issue-title { color: #dc2626; font-weight: 700; font-size: 13px; margin-bottom: 10px; }
+            .issue-title { color: #dc2626; font-weight: bold; font-size: 13px; margin-bottom: 10px; }
             .issue-number { background: #fee2e2; color: #dc2626; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; margin-right: 8px; }
             .regulation-box { background: #eff6ff; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 11px; }
-            .regulation-box strong { color: #1e40af; font-weight: 600; }
+            .regulation-box strong { color: #1e40af; font-weight: bold; }
             .note-box { background: #f3f4f6; padding: 10px; border-radius: 6px; margin: 10px 0; font-size: 11px; }
             .penalty-box { background: #fef2f2; border: 1px solid #fecaca; padding: 8px 12px; border-radius: 6px; margin-top: 10px; font-size: 11px; }
-            .penalty-box strong { color: #991b1b; font-weight: 600; }
+            .penalty-box strong { color: #991b1b; font-weight: bold; }
             .success-box { background: #dcfce7; padding: 30px; border-radius: 8px; text-align: center; color: #166534; }
-            .success-box h3 { margin: 0; font-size: 16px; font-weight: 700; }
+            .success-box h3 { margin: 0; font-size: 16px; font-weight: bold; }
             .legal-box { background: #fefce8; border: 1px solid #fde047; padding: 15px; border-radius: 8px; margin-top: 25px; font-size: 10px; }
-            .legal-box strong { color: #854d0e; font-weight: 600; }
+            .legal-box strong { color: #854d0e; font-weight: bold; }
             .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: center; font-size: 9px; color: #6b7280; }
           </style>
         </head>
@@ -3045,7 +3034,7 @@ function InspectionsTab({ token }) {
           <div class="info-box">
             <h3>KURUM BİLGİLERİ</h3>
             <div class="info-grid">
-              <div class="info-item"><strong>Okul Adı:</strong> ${inspection.schoolName}</div>
+              <div class="info-item"><strong>Okul Adı:</strong> ${inspection.schoolName || ''}</div>
               <div class="info-item"><strong>İl / İlçe:</strong> ${inspection.city?.name || ''} / ${inspection.district || ''}</div>
               <div class="info-item"><strong>Paket:</strong> ${inspection.package?.name || ''}</div>
               <div class="info-item"><strong>Danışman:</strong> ${inspection.inspector?.name || 'Belirtilmemiş'}</div>
@@ -3054,7 +3043,7 @@ function InspectionsTab({ token }) {
           </div>
           
           <div class="intro-box">
-            <p><strong>${formattedDate}</strong> tarihinde <strong>${inspection.schoolName}</strong> kurumu yetkilisi <strong>${inspection.schoolContact || 'kurum yetkilisi'}</strong> talebi üzerine yapılan özel denetleme hizmetimiz çerçevesinde aşağıda belirtilen detaylar tespit edilmiştir.</p>
+            <p><strong>${formattedDate}</strong> tarihinde <strong>${inspection.schoolName || ''}</strong> kurumu yetkilisi <strong>${inspection.schoolContact || 'kurum yetkilisi'}</strong> talebi üzerine yapılan özel denetleme hizmetimiz çerçevesinde aşağıda belirtilen detaylar tespit edilmiştir.</p>
             <p class="support">Eksiklerin en kısa sürede giderilmesi noktasında danışmanlık almak isterseniz sizlere destek olmaktan mutluluk duyarız.</p>
           </div>
           
@@ -3107,21 +3096,19 @@ function InspectionsTab({ token }) {
       // HTML'den PDF oluştur
       const element = document.createElement('div')
       element.innerHTML = htmlContent
+      element.style.width = '210mm' // A4 width
       document.body.appendChild(element)
       
-      // Font yüklenmesini bekle
-      await document.fonts.ready
-      
       const opt = {
-        margin: 10,
-        filename: `denetim_raporu_${inspection.schoolName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
+        margin: [10, 10, 10, 10],
+        filename: `denetim_raporu_${(inspection.schoolName || 'rapor').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
           scale: 2, 
           useCORS: true, 
           letterRendering: true,
           logging: false,
-          allowTaint: true
+          windowWidth: 794 // A4 width in pixels at 96 DPI
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       }
@@ -3399,6 +3386,7 @@ function InspectorPanel({ token, user }) {
   const [answers, setAnswers] = useState({})
   const [resumePosition, setResumePosition] = useState(null)
   const [editMode, setEditMode] = useState(false)
+  const [allAnsweredOnResume, setAllAnsweredOnResume] = useState(false)
 
   useEffect(() => {
     loadInspections()
@@ -3492,16 +3480,30 @@ function InspectorPanel({ token, user }) {
         // Show detailed resume info
         const resumeInfo = data.resumeInfo
         if (resumeInfo) {
-          sonnerToast.success(
-            `Kaldığınız yerden devam ediliyor\n${resumeInfo.totalAnswered}/${resumeInfo.totalQuestions} soru cevaplandı`,
-            { duration: 4000 }
-          )
+          // Check if all questions are answered
+          if (resumeInfo.totalAnswered >= resumeInfo.totalQuestions) {
+            // All questions answered - show finish confirmation
+            sonnerToast.info(
+              `Tüm sorular zaten cevaplandı (${resumeInfo.totalAnswered}/${resumeInfo.totalQuestions}). Denetimi tamamlayabilirsiniz.`,
+              { duration: 5000 }
+            )
+            // Set flag to show finish dialog
+            setAllAnsweredOnResume(true)
+          } else {
+            sonnerToast.success(
+              `Kaldığınız yerden devam ediliyor\n${resumeInfo.totalAnswered}/${resumeInfo.totalQuestions} soru cevaplandı`,
+              { duration: 4000 }
+            )
+            setAllAnsweredOnResume(false)
+          }
         } else {
           sonnerToast.success(`Kategori ${resumeCatIndex + 1}, Soru ${resumeQIndex + 1}'den devam ediliyor`)
+          setAllAnsweredOnResume(false)
         }
       } else {
         setCurrentCategoryIndex(0)
         setResumePosition(null)
+        setAllAnsweredOnResume(false)
         sonnerToast.success('Denetim başlatıldı')
       }
       
@@ -3610,6 +3612,7 @@ function InspectorPanel({ token, user }) {
       completeInspection={completeInspection}
       onCancel={() => setView('list')}
       token={token}
+      showFinishOnLoad={allAnsweredOnResume}
     />
   }
 
@@ -3754,7 +3757,8 @@ function InspectionFlow({
   saveProgress,
   completeInspection,
   onCancel,
-  token
+  token,
+  showFinishOnLoad = false
 }) {
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(initialCategoryIndex)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex)
@@ -3763,7 +3767,7 @@ function InspectionFlow({
   const [localPhotos, setLocalPhotos] = useState([])
   const [uploading, setUploading] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
-  const [showFinishDialog, setShowFinishDialog] = useState(false)
+  const [showFinishDialog, setShowFinishDialog] = useState(showFinishOnLoad)
 
   const currentCategory = categories[currentCategoryIndex] || categories[categories.length - 1]
   const categoryQuestions = currentCategory?.questions || []
