@@ -1,5 +1,8 @@
 # Mongo (ayrı servis) + app. Sadece DB: docker compose up -d mongo
 # Bu sırlar repoda düz metin; herkese açık repoda pushlamayın veya değiştirip kullanın.
+#
+# Coolify: Kaynak ortam değişkenlerinde yarım ${...} veya şablon uyarı metni YAZMAYIN;
+# build-time.env parse hatası verir. Sadece düz metin (tam URL, tam şifre).
 
 services:
   mongo:
@@ -33,8 +36,8 @@ services:
       NODE_ENV: production
       MONGO_URL: mongodb://root:a06cd3ef072cdaf94f7b2a332368ab456faa1dcfa9f8bd46@mongo:27017/anaokulu_denetim?authSource=admin
       JWT_SECRET: 26217242fa24279411d0ddca64b56296895172d0bb8684d33cb37d815ec996fcc51d5394ba2042603d0e613950db1bd8
-      NEXT_PUBLIC_BASE_URL: http://localhost:3000
-      CORS_ORIGINS: "*"
+      NEXT_PUBLIC_BASE_URL: https://anaokuludenetim.com
+      CORS_ORIGINS: https://anaokuludenetim.com
     depends_on:
       mongo:
         condition: service_healthy

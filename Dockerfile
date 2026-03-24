@@ -19,6 +19,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 # prisma generate does not connect; placeholder satisfies schema env("MONGO_URL")
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV MONGO_URL="mongodb://127.0.0.1:27017/build_placeholder"
+# Coolify / build: client bundle içine doğru origin (ARG ile override edilebilir)
+ARG NEXT_PUBLIC_BASE_URL=https://anaokuludenetim.com
+ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 RUN yarn prisma generate && yarn build
 
 # ── run ──────────────────────────────────────────────────────────
