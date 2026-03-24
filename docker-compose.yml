@@ -1,8 +1,7 @@
 # Mongo (ayrı servis) + app. Sadece DB: docker compose up -d mongo
 # Bu sırlar repoda düz metin; herkese açık repoda pushlamayın veya değiştirip kullanın.
 #
-# Coolify: Kaynak ortam değişkenlerinde yarım ${...} veya şablon uyarı metni YAZMAYIN;
-# build-time.env parse hatası verir. Sadece düz metin (tam URL, tam şifre).
+# Coolify hatası alıyorsanız: coolify-duzelt-oku.txt — paneldeki bozuk env build-time.env kırıyor.
 
 services:
   mongo:

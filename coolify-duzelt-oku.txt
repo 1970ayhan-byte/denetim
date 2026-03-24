@@ -1,0 +1,59 @@
+================================================================================
+Coolify: "Invalid template: ${NEXT_PUBLIC_BASE_URL" HATASI
+================================================================================
+Bu hata GITHUB REPOSUNDA DEĞİL. Coolify, panelde tanımlı değişkenleri
+/artifacts/build-time.env dosyasına yazar. Orada BOZUK bir satır var:
+
+  CORS_ORIGINS="${NEXT_PUBLIC_BASE_URL"   ← kapanan } yok, geçersiz
+
+Ayrıca şu tür "açıklama metinleri" değer olarak yazılmış (bunlar da silinmeli
+veya gerçek değerle değiştirilmeli):
+  JWT_SECRET="JWT_SECRET .env içinde olmalı ..."
+  MONGO_ROOT_USER="prod.envvars.template dosyasından ..."
+
+--------------------------------------------------------------------------------
+ÇÖZÜM A — En hızlı (önerilen)
+--------------------------------------------------------------------------------
+Coolify → anaokuludenetim → Configuration → Environment Variables
+
+1) Sağ üstte "Developer view" (veya Normal view) açın.
+
+2) Şu anahtarları bulun ve TAMAMEN SİLİN (veya değeri düz metin yapın):
+   - CORS_ORIGINS          → silin VEYA sadece: https://anaokuludenetim.com
+   - JWT_SECRET            → silin VEYA gerçek uzun secret (Türkçe cümle YOK)
+   - MONGO_ROOT_USER       → silin VEYA gerçek kullanıcı adı (ör. root)
+   - MONGO_ROOT_PASSWORD   → silin VEYA gerçek şifre
+   - NEXT_PUBLIC_BASE_URL  → silin VEYA: https://anaokuludenetim.com
+
+   Not: Repodaki docker-compose.yml içinde Mongo ve JWT zaten tanımlıysa,
+   Coolify tarafında bu isimlerle İKİNCİ kez değişken tutmanıza gerek yok;
+   çakışma ve parse hatası riskini azaltır.
+
+3) Kaydedin → Redeploy.
+
+--------------------------------------------------------------------------------
+ÇÖZÜM B — Değişkeni silmeden (Build dışı)
+--------------------------------------------------------------------------------
+Coolify dokümantasyonu: "Build Variable" işaretli her değişken build-time.env
+dosyasına gider.
+
+Sorunlu değişken kartında:
+  [ ] Build Variable   (KAPATIN — sadece Runtime kalsın)
+  [x] Runtime Variable
+
+Böylece bozuk CORS_ORIGINS build dosyasına hiç yazılmaz; deploy ilerler.
+(Uygulama repodaki compose ile yine doğru env alır.)
+
+--------------------------------------------------------------------------------
+ÇÖZÜM C — Şifrede $ karakteri
+--------------------------------------------------------------------------------
+Değerde $ kullanıyorsanız Coolify "Normal view"da o değişken için
+"Literal" kutusunu işaretleyin; aksi halde Coolify iç interpolasyon bozulur.
+
+--------------------------------------------------------------------------------
+Shared Variables
+--------------------------------------------------------------------------------
+Aynı isimler Team / Project / Environment "Shared Variables" içinde de
+olabilir. Oradan da temizleyin; yoksa her deploy tekrar enjekte edilir.
+
+================================================================================
