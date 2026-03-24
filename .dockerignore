@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example
+Dockerfile*
+.dockerignore
+prisma/dev.db
+.cursor
+.emergent
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

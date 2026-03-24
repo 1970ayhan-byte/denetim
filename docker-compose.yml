@@ -1,0 +1,43 @@
+# Mongo (ayrı servis) + app. Sadece DB: docker compose up -d mongo
+# Bu sırlar repoda düz metin; herkese açık repoda pushlamayın veya değiştirip kullanın.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: denetim-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: a06cd3ef072cdaf94f7b2a332368ab456faa1dcfa9f8bd46
+      MONGO_INITDB_DATABASE: anaokulu_denetim
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval "db.adminCommand('ping')" --quiet || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  app:
+    build: .
+    container_name: denetim-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      MONGO_URL: mongodb://root:a06cd3ef072cdaf94f7b2a332368ab456faa1dcfa9f8bd46@mongo:27017/anaokulu_denetim?authSource=admin
+      JWT_SECRET: 26217242fa24279411d0ddca64b56296895172d0bb8684d33cb37d815ec996fcc51d5394ba2042603d0e613950db1bd8
+      NEXT_PUBLIC_BASE_URL: http://localhost:3000
+      CORS_ORIGINS: "*"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo_data:

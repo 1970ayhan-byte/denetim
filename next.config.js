@@ -4,8 +4,11 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    // Remove if not using Server Components
-    serverComponentsExternalPackages: ['mongodb'],
+    serverComponentsExternalPackages: ['mongodb', '@prisma/client'],
+    // Standalone Docker: Prisma engine dosyalarını imaja dahil et
+    outputFileTracingIncludes: {
+      '/*': ['./node_modules/.prisma/client/**/*'],
+    },
   },
   webpack(config, { dev }) {
     if (dev) {
