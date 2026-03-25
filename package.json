@@ -9,7 +9,6 @@
         "build": "next build",
         "start": "next start",
         "seed": "node prisma/seed.js",
-        "seed:docker": "docker compose --profile seed run --rm seed",
         "db:push": "prisma db push"
     },
     "dependencies": {
