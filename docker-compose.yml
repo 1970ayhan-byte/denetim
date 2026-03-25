@@ -1,5 +1,8 @@
 # Mongo + app. Değişkenler kökteki .env dosyasından (cp .env.example .env)
 # Coolify: bozuk ${...} içeren env yazmayın — coolify-duzelt-oku.txt
+#
+# Seed (app imajında prisma/seed.js yok — ayrı builder hedefi):
+#   docker compose --profile seed run --rm seed
 
 services:
   mongo:
@@ -41,6 +44,23 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+
+  # Tek seferlik; production runner’da seed dosyası yok (standalone imaj)
+  seed:
+    profiles:
+      - seed
+    build:
+      context: .
+      target: builder
+      args:
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
+    env_file: .env
+    environment:
+      MONGO_URL: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_DB}?authSource=admin
+    depends_on:
+      mongo:
+        condition: service_healthy
+    command: ["node", "prisma/seed.js"]
 
 volumes:
   mongo_data:
