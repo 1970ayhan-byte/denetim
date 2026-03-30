@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthProvider'
+import { RouteLoading } from '@/components/loading/RouteLoading'
 
 export function RequireRole({ role, children }) {
   const router = useRouter()
@@ -25,11 +26,7 @@ export function RequireRole({ role, children }) {
   }, [hydrated, token, user, role, router])
 
   if (!hydrated || !token || !user) {
-    return (
-      <div className="min-h-[40vh] flex items-center justify-center text-muted-foreground">
-        Yükleniyor...
-      </div>
-    )
+    return <RouteLoading />
   }
 
   if (role === 'admin' && user.role !== 'admin') return null

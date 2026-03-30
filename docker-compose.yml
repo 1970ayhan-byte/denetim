@@ -1,27 +1,25 @@
-# Mongo + app. Değişkenler kökteki .env dosyasından (cp .env.example .env)
-# Coolify: bozuk ${...} içeren env yazmayın — coolify-duzelt-oku.txt
+# Postgres + app. Değişkenler kökteki .env dosyasından (cp .env.example .env)
+# Coolify: ortam değişkenlerinde kapanmamış ${...} veya açıklama metni değer olarak kullanmayın
 
 services:
-  mongo:
-    image: mongo:7
-    container_name: denetim-mongo
+  postgres:
+    image: postgres:16-alpine
+    container_name: denetim-postgres
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGO_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-denetim}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-denetim}
+      POSTGRES_DB: ${POSTGRES_DB:-denetim}
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test:
-        - CMD-SHELL
-        - mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval "db.adminCommand('ping')" --quiet || exit 1
+      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 15s
 
   app:
     build:
@@ -31,16 +29,16 @@ services:
     container_name: denetim-app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-3030}:3030"
     environment:
       NODE_ENV: production
-      MONGO_URL: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_DB}?authSource=admin
+      DATABASE_URL: postgresql://${POSTGRES_USER:-denetim}:${POSTGRES_PASSWORD:-denetim}@postgres:5432/${POSTGRES_DB:-denetim}
       JWT_SECRET: ${JWT_SECRET}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       CORS_ORIGINS: ${CORS_ORIGINS}
     depends_on:
-      mongo:
+      postgres:
         condition: service_healthy
 
 volumes:
-  mongo_data:
+  postgres_data:

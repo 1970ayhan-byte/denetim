@@ -3,7 +3,7 @@ import Script from 'next/script'
 import { Providers } from './providers'
 
 // Base URL for metadata (uses env variable)
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3030'
 
 export const metadata = {
   title: {

@@ -6,12 +6,14 @@ import { CheckCircle2, SkipForward } from 'lucide-react'
 import { toast as sonnerToast } from 'sonner'
 import {
   normalizeSkippedQuestionIds,
-  flattenInspectionQuestions,
   findNextUnansweredAfter,
   findNextUnansweredFromInclusive,
+  firstUnansweredQuestionIndexInCategory,
+  getCategoryStats,
 } from './inspectionHelpers'
-import { FlowToolbar } from './flow/FlowToolbar'
-import { FlowProgressBar } from './flow/FlowProgressBar'
+import { FlowDenetimTopBar } from './flow/FlowDenetimTopBar'
+import { FlowCategoryChips } from './flow/FlowCategoryChips'
+import { FlowQuestionStrip } from './flow/FlowQuestionStrip'
 import { FlowQuestionPanel } from './flow/FlowQuestionPanel'
 import { FlowSoruListesiSheet } from './flow/FlowSoruListesiSheet'
 import { FlowBlockingFinish } from './flow/FlowBlockingFinish'
@@ -44,7 +46,6 @@ export function InspectionFlow({
   )
   const [skipSubmitting, setSkipSubmitting] = useState(false)
   const [soruListesiOpen, setSoruListesiOpen] = useState(false)
-  const [soruListesiTab, setSoruListesiTab] = useState('all')
 
   const currentCategory = categories[currentCategoryIndex] || categories[categories.length - 1]
   const categoryQuestions = currentCategory?.questions || []
@@ -90,6 +91,13 @@ export function InspectionFlow({
     })
   }, [skippedIds, answers, categories])
 
+  const skippedSet = useMemo(() => new Set(skippedIds), [skippedIds])
+
+  const statsList = useMemo(
+    () => categories.map((cat) => getCategoryStats(cat, answers, skippedSet)),
+    [categories, answers, skippedSet]
+  )
+
   const skippedNeedingAnswerCount = useMemo(
     () => skippedRowsAll.filter((r) => !r.hasAnswer).length,
     [skippedRowsAll]
@@ -99,23 +107,6 @@ export function InspectionFlow({
     () => skippedRowsAll.filter((r) => r.hasAnswer).length,
     [skippedRowsAll]
   )
-
-  const allQuestionsRows = useMemo(() => {
-    const skippedSet = new Set(skippedIds)
-    return flattenInspectionQuestions(categories).map((row) => {
-      const ans = answers[row.id]
-      const hasAnswer = Boolean(ans?.answer)
-      let answerLabel = ''
-      if (ans?.answer === 'uygun') answerLabel = 'Uygun'
-      else if (ans?.answer === 'uygun_degil') answerLabel = 'Uygun değil'
-      const isSkipped = skippedSet.has(row.id)
-      let status = 'Bekliyor'
-      if (hasAnswer && isSkipped) status = 'Cevaplı + Geçilenler'
-      else if (hasAnswer) status = 'Cevaplandı'
-      else if (isSkipped) status = 'Geçildi'
-      return { ...row, hasAnswer, answerLabel, isSkipped, status }
-    })
-  }, [categories, answers, skippedIds])
 
   useEffect(() => {
     if (allQuestionsAnswered && !currentQuestion && !showFinishDialog) {
@@ -215,6 +206,8 @@ export function InspectionFlow({
       currentQuestionIndex
     )
 
+    const prevCatIdx = currentCategoryIndex
+
     if (!nextPos) {
       await saveAnswer(
         currentQuestion.id,
@@ -247,7 +240,16 @@ export function InspectionFlow({
     setLocalAnswer('')
     setLocalNote('')
     setLocalPhotos([])
-    sonnerToast.success('Cevap kaydedildi', { duration: 1500 })
+    if (nextPos.catIdx > prevCatIdx) {
+      const doneName = categories[prevCatIdx]?.name || `Kategori ${prevCatIdx + 1}`
+      const nextName = categories[nextPos.catIdx]?.name || `Kategori ${nextPos.catIdx + 1}`
+      sonnerToast.success(`${doneName} bitti`, {
+        description: `Sırada: ${nextName}`,
+        duration: 4000,
+      })
+    } else {
+      sonnerToast.success('Cevap kaydedildi', { duration: 1500 })
+    }
   }
 
   const handleSkip = async () => {
@@ -354,6 +356,34 @@ export function InspectionFlow({
     }
   }
 
+  const selectCategory = async (catIdx) => {
+    if (catIdx < 0 || catIdx >= categories.length || catIdx === currentCategoryIndex) return
+    const merged = { ...answers }
+    if (localAnswer && currentQuestion) {
+      merged[currentQuestion.id] = { answer: localAnswer, note: localNote, photos: localPhotos }
+    }
+    const qIdx = firstUnansweredQuestionIndexInCategory(categories, merged, catIdx)
+    if (localAnswer && currentQuestion) {
+      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, catIdx, qIdx)
+    } else {
+      await saveProgress(currentCategoryIndex, currentQuestionIndex)
+    }
+    await saveProgress(catIdx, qIdx)
+    setCurrentCategoryIndex(catIdx)
+    setCurrentQuestionIndex(qIdx)
+  }
+
+  const selectQuestionInCategory = async (qi) => {
+    if (qi === currentQuestionIndex) return
+    const catIdx = currentCategoryIndex
+    if (localAnswer && currentQuestion) {
+      await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, catIdx, qi)
+    } else {
+      await saveProgress(catIdx, qi)
+    }
+    setCurrentQuestionIndex(qi)
+  }
+
   const handlePrevious = async () => {
     let newCatIndex = currentCategoryIndex
     let newQIndex = currentQuestionIndex
@@ -436,106 +466,113 @@ export function InspectionFlow({
     )
   }
 
-  const progressPercent =
-    totalQuestions > 0
-      ? ((currentCategoryIndex * 100 + ((currentQuestionIndex + 1) / totalQuestions) * 100) /
-          categories.length)
-      : 0
-
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="bg-white border-b sticky top-0 z-10">
-        <FlowToolbar
-          schoolName={inspection.schoolName}
-          categoryName={currentCategory.name}
-          autoSaving={autoSaving}
-          onOpenListAll={() => {
-            setSoruListesiTab('all')
-            setSoruListesiOpen(true)
-          }}
-          onOpenListSkipped={() => {
-            setSoruListesiTab('skipped')
-            setSoruListesiOpen(true)
-          }}
-          skippedNeedingAnswerCount={skippedNeedingAnswerCount}
-          onPause={handlePause}
-          onCancel={onCancel}
-        />
-        <FlowProgressBar
-          currentQuestionIndex={currentQuestionIndex}
-          totalQuestions={totalQuestions}
-          currentCategoryIndex={currentCategoryIndex}
-          categoriesLength={categories.length}
-          progressPercent={progressPercent}
-          answeredCount={answeredCount}
-          totalAllQuestions={totalAllQuestions}
-        />
-      </div>
+    <div className="min-h-[calc(100dvh-3.5rem)] bg-zinc-100">
+      {/* Doğal sayfa kaydırması — içte sticky/scroll tuzakları yok; kategoriler her zaman akışta */}
+      <div className="mx-auto w-full max-w-7xl overflow-x-hidden px-3 pb-4 pt-1 sm:px-5 md:px-6">
+        <div className="overflow-hidden rounded-2xl border border-zinc-200/90 bg-white shadow-md shadow-zinc-900/[0.06]">
+          <FlowDenetimTopBar
+            schoolName={inspection.schoolName}
+            categoryLabel={`${currentCategoryIndex + 1}. ${currentCategory.name}`}
+            questionPositionLabel={`Bu kategoride soru ${safeQuestionIndex + 1} / ${totalQuestions}`}
+            autoSaving={autoSaving}
+            overallAnswered={answeredCount}
+            overallTotal={totalAllQuestions}
+            onOpenListSkipped={() => setSoruListesiOpen(true)}
+            skippedNeedingAnswerCount={skippedNeedingAnswerCount}
+            onPause={handlePause}
+            onCancel={onCancel}
+          />
 
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <FlowQuestionPanel
-          currentQuestion={currentQuestion}
-          localAnswer={localAnswer}
-          setLocalAnswer={setLocalAnswer}
-          localNote={localNote}
-          setLocalNote={setLocalNote}
-          localPhotos={localPhotos}
-          setLocalPhotos={setLocalPhotos}
-          uploading={uploading}
-          onPhotoUpload={handlePhotoUpload}
-        />
+          <div className="bg-zinc-50/50">
+            <FlowCategoryChips
+              categories={categories}
+              statsList={statsList}
+              currentCategoryIndex={currentCategoryIndex}
+              onSelectCategory={selectCategory}
+            />
 
-        <div className="flex flex-wrap gap-2 mt-6">
-          {(currentQuestionIndex > 0 || currentCategoryIndex > 0) && (
-            <Button variant="outline" onClick={handlePrevious} className="flex-1 min-w-[140px]">
-              ← Önceki Soru
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleSkip}
-            disabled={skipSubmitting}
-            className="flex-1 min-w-[100px] border-amber-300 text-amber-900 hover:bg-amber-50"
-          >
-            <SkipForward className="h-4 w-4 mr-2 inline" />
-            {skipSubmitting ? '…' : 'GEÇ'}
-          </Button>
-          {isLastQuestion && isLastCategory ? (
-            <Button
-              onClick={async () => {
-                if (localAnswer) {
-                  await saveAnswer(
-                    currentQuestion.id,
-                    localAnswer,
-                    localNote,
-                    localPhotos,
-                    currentCategoryIndex,
-                    currentQuestionIndex,
-                    true
-                  )
-                }
-                setShowFinishDialog(true)
-              }}
-              className="flex-1 min-w-[160px] bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              DENETİMİ BİTİR
-            </Button>
-          ) : (
-            <Button onClick={handleNext} disabled={!localAnswer} className="flex-1 min-w-[140px]">
-              Sonraki Soru →
-            </Button>
-          )}
+            <FlowQuestionStrip
+              questions={categoryQuestions}
+              answers={answers}
+              skippedSet={skippedSet}
+              currentQuestionIndex={safeQuestionIndex}
+              onSelectQuestion={selectQuestionInCategory}
+              categoryName={currentCategory.name}
+            />
+
+            <div className="px-3 py-5 sm:px-4 md:py-8">
+            <FlowQuestionPanel
+              currentQuestion={currentQuestion}
+              localAnswer={localAnswer}
+              setLocalAnswer={setLocalAnswer}
+              localNote={localNote}
+              setLocalNote={setLocalNote}
+              localPhotos={localPhotos}
+              setLocalPhotos={setLocalPhotos}
+              uploading={uploading}
+              onPhotoUpload={handlePhotoUpload}
+            />
+
+            <div className="mt-5 flex flex-col flex-wrap gap-2 sm:flex-row sm:gap-3 md:mt-6">
+              {(currentQuestionIndex > 0 || currentCategoryIndex > 0) && (
+                <Button
+                  variant="outline"
+                  onClick={handlePrevious}
+                  className="min-h-[48px] flex-1 sm:flex-initial sm:min-w-[160px] rounded-xl touch-manipulation"
+                >
+                  ← Önceki
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSkip}
+                disabled={skipSubmitting}
+                className="min-h-[48px] flex-1 sm:flex-initial sm:min-w-[120px] rounded-xl border-amber-300 text-amber-900 hover:bg-amber-50 touch-manipulation"
+              >
+                <SkipForward className="h-4 w-4 mr-2 inline" />
+                {skipSubmitting ? '…' : 'Geç'}
+              </Button>
+              {isLastQuestion && isLastCategory ? (
+                <Button
+                  onClick={async () => {
+                    if (localAnswer) {
+                      await saveAnswer(
+                        currentQuestion.id,
+                        localAnswer,
+                        localNote,
+                        localPhotos,
+                        currentCategoryIndex,
+                        currentQuestionIndex,
+                        true
+                      )
+                    }
+                    setShowFinishDialog(true)
+                  }}
+                  className="min-h-[48px] flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold touch-manipulation"
+                >
+                  <CheckCircle2 className="h-5 w-5 mr-2" />
+                  Denetimi bitir
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleNext}
+                  disabled={!localAnswer}
+                  className="min-h-[48px] flex-1 rounded-xl font-semibold touch-manipulation sm:min-w-[180px]"
+                >
+                  {isLastQuestion ? 'Sonraki kategori →' : 'Sonraki soru →'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
         </div>
       </div>
 
       <FlowSoruListesiSheet
         open={soruListesiOpen}
         onOpenChange={setSoruListesiOpen}
-        soruListesiTab={soruListesiTab}
-        onTabChange={setSoruListesiTab}
-        allQuestionsRows={allQuestionsRows}
         skippedRowsAll={skippedRowsAll}
         currentQuestionId={currentQuestion?.id}
         onSelectQuestion={goToQuestionById}

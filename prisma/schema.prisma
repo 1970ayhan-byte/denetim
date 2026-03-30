@@ -1,165 +1,146 @@
-// This is your Prisma schema file for MongoDB
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// PostgreSQL + Prisma — https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mongodb"
-  url      = env("MONGO_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-// Kullanıcılar (Admin ve Denetim Personeli)
 model User {
-  id            String        @id @default(uuid()) @map("_id")
-  phone         String        @unique
-  password      String
-  name          String
-  role          String        // 'admin' veya 'inspector'
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
-  inspections   Inspection[]  @relation("InspectorInspections")
-}
-
-// Denetim Kategorileri (MEB, Yangın, Tarım vb.)
-model Category {
-  id          String      @id @default(uuid()) @map("_id")
+  id          String       @id @default(uuid())
+  phone       String       @unique
+  password    String
   name        String
-  order       Int         @default(0)
-  createdAt   DateTime    @default(now())
-  
-  questions   Question[]
+  role        String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  inspections Inspection[] @relation("InspectorInspections")
 }
 
-// Denetim Soruları
+model Category {
+  id        String     @id @default(uuid())
+  name      String
+  order     Int        @default(0)
+  createdAt DateTime   @default(now())
+  questions Question[]
+}
+
 model Question {
-  id              String    @id @default(uuid()) @map("_id")
-  categoryId      String
-  question        String
-  regulationText  String    @default("")
-  imageUrl        String    @default("")
-  order           Int       @default(0)
-  penaltyType     String    @default("") // "idari_para_cezasi", "uyarı", "kınama"
-  createdAt       DateTime  @default(now())
-  
-  category        Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  answers         InspectionAnswer[]
+  id             String             @id @default(uuid())
+  categoryId     String
+  question       String
+  regulationText String             @default("")
+  imageUrl       String             @default("")
+  order          Int                @default(0)
+  penaltyType    String             @default("")
+  createdAt      DateTime           @default(now())
+  category       Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  answers        InspectionAnswer[]
 }
 
-// Paketler
 model Package {
-  id          String      @id @default(uuid()) @map("_id")
+  id          String       @id @default(uuid())
   name        String
   price       Float
-  description String      @default("")
-  features    String      @default("") // JSON string olarak saklanacak
-  active      Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  
+  description String       @default("")
+  features    String       @default("")
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
   inspections Inspection[]
   payments    Payment[]
 }
 
-// İller (Yol ve Konaklama Ücretleri)
 model City {
-  id                  String      @id @default(uuid()) @map("_id")
-  name                String      @unique
-  travelCost          Float       @default(0)
-  accommodationCost   Float       @default(0)
-  createdAt           DateTime    @default(now())
-  
+  id                  String       @id @default(uuid())
+  name                String       @unique
+  travelCost          Float        @default(0)
+  accommodationCost   Float        @default(0)
+  createdAt           DateTime     @default(now())
   inspections         Inspection[]
   payments            Payment[]
 }
 
-// Denetimler
 model Inspection {
-  id                    String      @id @default(uuid()) @map("_id")
-  schoolName            String
-  cityId                String
-  district              String      @default("")
-  packageId             String
-  paymentId             String?
-  inspectorId           String?
-  status                String      @default("pending") // pending, in_progress, completed
-  schoolContact         String      @default("")
-  schoolPhone           String      @default("")
-  schoolEmail           String      @default("")
-  capacity              String      @default("")
-  currentCategoryIndex  Int         @default(0)
-  currentQuestionIndex  Int         @default(0)
-  skippedQuestionIds    String[]    @default([])
-  createdAt             DateTime    @default(now())
-  completedAt           DateTime?
-  
-  city          City        @relation(fields: [cityId], references: [id])
-  package       Package     @relation(fields: [packageId], references: [id])
-  inspector     User?       @relation("InspectorInspections", fields: [inspectorId], references: [id])
-  payment       Payment?    @relation(fields: [paymentId], references: [id])
-  answers       InspectionAnswer[]
+  id                   String             @id @default(uuid())
+  schoolName           String
+  cityId               String
+  district             String             @default("")
+  packageId            String
+  paymentId            String?
+  inspectorId          String?
+  status               String             @default("pending")
+  schoolContact        String             @default("")
+  schoolPhone          String             @default("")
+  schoolEmail          String             @default("")
+  capacity             String             @default("")
+  currentCategoryIndex Int                @default(0)
+  currentQuestionIndex Int                @default(0)
+  skippedQuestionIds   String[]           @default([])
+  createdAt            DateTime           @default(now())
+  completedAt          DateTime?
+  city                 City               @relation(fields: [cityId], references: [id])
+  package              Package            @relation(fields: [packageId], references: [id])
+  inspector            User?              @relation("InspectorInspections", fields: [inspectorId], references: [id])
+  payment              Payment?           @relation(fields: [paymentId], references: [id])
+  answers              InspectionAnswer[]
 }
 
-// Denetim Cevapları
 model InspectionAnswer {
-  id              String      @id @default(uuid()) @map("_id")
-  inspectionId    String
-  questionId      String
-  answer          String      // "uygun" | "uygun_degil"
-  note            String      @default("")
-  photos          String      @default("") // JSON string array
-  createdAt       DateTime    @default(now())
-  
-  inspection      Inspection  @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  question        Question    @relation(fields: [questionId], references: [id])
+  id           String     @id @default(uuid())
+  inspectionId String
+  questionId   String
+  answer       String
+  note         String     @default("")
+  photos       String     @default("")
+  createdAt    DateTime   @default(now())
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  question     Question   @relation(fields: [questionId], references: [id])
 }
 
-// Ödemeler
 model Payment {
-  id            String      @id @default(uuid()) @map("_id")
+  id            String       @id @default(uuid())
   amount        Float
   packageId     String
   schoolName    String
   cityId        String
-  district      String      @default("")
+  district      String       @default("")
   contactName   String
   contactPhone  String
-  contactEmail  String      @default("")
-  taxOffice     String      @default("")
-  taxNumber     String      @default("")
-  address       String      @default("")
-  status        String      @default("pending") // pending, completed, failed
-  transactionId String      @default("")
-  createdAt     DateTime    @default(now())
+  contactEmail  String       @default("")
+  taxOffice     String       @default("")
+  taxNumber     String       @default("")
+  address       String       @default("")
+  status        String       @default("pending")
+  transactionId String       @default("")
+  createdAt     DateTime     @default(now())
   paidAt        DateTime?
-  
-  package       Package     @relation(fields: [packageId], references: [id])
-  city          City        @relation(fields: [cityId], references: [id])
+  package       Package      @relation(fields: [packageId], references: [id])
+  city          City         @relation(fields: [cityId], references: [id])
   inspections   Inspection[]
 }
 
-// İletişim Mesajları
 model Message {
-  id            String      @id @default(uuid()) @map("_id")
-  name          String
-  schoolName    String      @default("")
-  phone         String
-  type          String      // "bilgi_almak" veya "denetim_yaptirmak"
-  status        String      @default("new") // new, contacted, positive, negative, wrong
-  note          String      @default("")
-  createdAt     DateTime    @default(now())
+  id         String   @id @default(uuid())
+  name       String
+  schoolName String   @default("")
+  phone      String
+  type       String
+  status     String   @default("new")
+  note       String   @default("")
+  createdAt  DateTime @default(now())
 }
 
-// Haberler (Blog)
 model News {
-  id            String      @id @default(uuid()) @map("_id")
-  title         String
-  content       String
-  imageUrl      String      @default("")
-  keywords      String      @default("")
-  slug          String      @unique
-  published     Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  imageUrl  String   @default("")
+  keywords  String   @default("")
+  slug      String   @unique
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

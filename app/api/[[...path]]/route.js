@@ -1,64 +1,67 @@
 import { NextResponse } from 'next/server'
 import {
-  mongoCreateUser,
-  mongoUpdateUser,
-  mongoDeleteUser,
-  mongoCreateCategory,
-  mongoUpdateCategory,
-  mongoDeleteCategory,
-  mongoCreateQuestion,
-  mongoUpdateQuestion,
-  mongoDeleteQuestion,
-  mongoCreatePackage,
-  mongoUpdatePackage,
-  mongoDeletePackage,
-  mongoCreateCity,
-  mongoUpdateCity,
-  mongoDeleteCity,
-  mongoCreateMessage,
-  mongoUpdateMessage,
-  mongoCreateNews,
-  mongoUpdateNews,
-  mongoDeleteNews,
-  mongoCreatePayment,
-  mongoUpdatePayment,
-  mongoCreateInspection,
-  mongoUpdateInspection,
-  mongoAddSkippedQuestion,
-  mongoRemoveSkippedQuestion,
-  mongoCreateInspectionAnswer,
-  mongoUpdateInspectionAnswer,
-  mongoFindInspectionAnswerByInspectionAndQuestion,
-} from '@/lib/mongoWrites'
+  createUser,
+  updateUser,
+  deleteUser,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  createQuestion,
+  updateQuestion,
+  deleteQuestion,
+  createPackage,
+  updatePackage,
+  deletePackage,
+  createCity,
+  updateCity,
+  deleteCity,
+  createMessage,
+  updateMessage,
+  createNews,
+  updateNews,
+  deleteNews,
+  createPayment,
+  updatePayment,
+  createInspection,
+  duplicateInspectionForReinspect,
+  updateInspection,
+  addSkippedQuestion,
+  removeSkippedQuestion,
+  createInspectionAnswer,
+  updateInspectionAnswer,
+  findInspectionAnswerByInspectionAndQuestion,
+} from '@/lib/dbWrites'
 import {
-  mongoListPaymentsAdmin,
-  mongoListInspectionsAdmin,
-  mongoListInspectionsForInspector,
-  mongoListInspectionsExport,
-  mongoGetInspectionDetailForInspector,
-  mongoGetInspectionWithAnswersForStart,
-  mongoInspectionAnswersChronological,
-  mongoGetAdminInspectionReport,
-  mongoGetAdminInspectionPdf,
-  mongoInspectionsSinceForStats,
-  mongoListQuestionsWithCategory,
-  mongoGetPackageById,
+  listPaymentsAdmin,
+  listInspectionsAdmin,
+  listInspectionsForInspector,
+  listInspectionsExport,
+  getInspectionDetailForInspector,
+  getInspectionWithAnswersForStart,
+  inspectionAnswersChronological,
+  getAdminInspectionReport,
+  getAdminInspectionPdf,
+  inspectionsSinceForStats,
+  listQuestionsWithCategory,
+  getPackageById,
   filterCategoriesByPackageFeatures,
-  mongoFindUserByPhone,
-  mongoListStaffInspectors,
-  mongoListCategoriesWithQuestions,
-  mongoListPackagesAdmin,
-  mongoListPackagesPublicWithFeatures,
-  mongoListCitiesByNameAsc,
-  mongoListMessagesAdmin,
-  mongoListNewsAdmin,
-  mongoListNewsPublished,
-  mongoNewsBySlug,
-  mongoInspectionScalarsById,
-  mongoMessagesSince,
-  mongoPaymentsCompletedSince,
-} from '@/lib/mongoReads'
-import { mongoExportFullDatabase } from '@/lib/mongoDatabaseExport'
+  findUserByPhone,
+  listStaffInspectors,
+  listCategoriesWithQuestions,
+  listPackagesAdmin,
+  listPackagesPublicWithFeatures,
+  listCitiesByNameAsc,
+  listMessagesAdmin,
+  listNewsAdmin,
+  listNewsPublished,
+  newsBySlug,
+  inspectionScalarsById,
+  enrichInspectionRow,
+  messagesSince,
+  paymentsCompletedSince,
+} from '@/lib/dbReads'
+import { exportFullDatabase } from '@/lib/databaseExport'
+import { importFullDatabase } from '@/lib/databaseImport'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
@@ -91,7 +94,7 @@ async function handleRoute(request, { params }) {
     if (route === '/auth/login' && method === 'POST') {
       const { phone, password } = await request.json()
       
-      const user = await mongoFindUserByPhone(phone)
+      const user = await findUserByPhone(phone)
       if (!user) {
         return handleCORS(NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 401 }))
       }
@@ -113,7 +116,7 @@ async function handleRoute(request, { params }) {
       const { phone, password, name, role } = await request.json()
       
       const hashedPassword = await hashPassword(password)
-      const user = await mongoCreateUser({
+      const user = await createUser({
         phone,
         password: hashedPassword,
         name,
@@ -129,7 +132,7 @@ async function handleRoute(request, { params }) {
     // Password Reset Request (Mock SMS)
     if (route === '/auth/reset-password' && method === 'POST') {
       const { phone } = await request.json()
-      const user = await mongoFindUserByPhone(phone)
+      const user = await findUserByPhone(phone)
       
       if (!user) {
         return handleCORS(NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 404 }))
@@ -147,7 +150,7 @@ async function handleRoute(request, { params }) {
     // ============ ADMIN - CATEGORIES ============
     
     if (route === '/admin/categories' && method === 'GET') {
-      const categories = await mongoListCategoriesWithQuestions()
+      const categories = await listCategoriesWithQuestions()
       return handleCORS(NextResponse.json(categories))
     }
     
@@ -158,7 +161,7 @@ async function handleRoute(request, { params }) {
       }
       
       const { name, order } = await request.json()
-      const category = await mongoCreateCategory({ name, order: order || 0 })
+      const category = await createCategory({ name, order: order || 0 })
       return handleCORS(NextResponse.json(category))
     }
     
@@ -170,7 +173,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const { name, order } = await request.json()
-      const category = await mongoUpdateCategory(id, { name, order })
+      const category = await updateCategory(id, { name, order })
       return handleCORS(NextResponse.json(category))
     }
     
@@ -181,7 +184,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await mongoDeleteCategory(id)
+      await deleteCategory(id)
       return handleCORS(NextResponse.json({ message: 'Kategori silindi' }))
     }
     
@@ -189,7 +192,7 @@ async function handleRoute(request, { params }) {
     
     if (route === '/admin/questions' && method === 'GET') {
       const { categoryId } = Object.fromEntries(new URL(request.url).searchParams)
-      const questions = await mongoListQuestionsWithCategory(categoryId || null)
+      const questions = await listQuestionsWithCategory(categoryId || null)
       return handleCORS(NextResponse.json(questions))
     }
     
@@ -204,7 +207,7 @@ async function handleRoute(request, { params }) {
       if (data.penaltyType === 'none') {
         data.penaltyType = ''
       }
-      const question = await mongoCreateQuestion(data)
+      const question = await createQuestion(data)
       return handleCORS(NextResponse.json(question))
     }
     
@@ -220,7 +223,7 @@ async function handleRoute(request, { params }) {
       if (data.penaltyType === 'none') {
         data.penaltyType = ''
       }
-      const question = await mongoUpdateQuestion(id, data)
+      const question = await updateQuestion(id, data)
       return handleCORS(NextResponse.json(question))
     }
     
@@ -231,7 +234,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await mongoDeleteQuestion(id)
+      await deleteQuestion(id)
       return handleCORS(NextResponse.json({ message: 'Soru silindi' }))
     }
     
@@ -243,7 +246,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const staff = await mongoListStaffInspectors()
+      const staff = await listStaffInspectors()
       return handleCORS(NextResponse.json(staff))
     }
     
@@ -255,7 +258,7 @@ async function handleRoute(request, { params }) {
       
       const { phone, password, name } = await request.json()
       const hashedPassword = await hashPassword(password)
-      const user = await mongoCreateUser({
+      const user = await createUser({
         phone,
         password: hashedPassword,
         name,
@@ -279,7 +282,7 @@ async function handleRoute(request, { params }) {
         data.password = await hashPassword(password)
       }
       
-      const user = await mongoUpdateUser(id, data)
+      const user = await updateUser(id, data)
       return handleCORS(NextResponse.json({ 
         id: user.id, phone: user.phone, name: user.name, role: user.role 
       }))
@@ -292,14 +295,14 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await mongoDeleteUser(id)
+      await deleteUser(id)
       return handleCORS(NextResponse.json({ message: 'Personel silindi' }))
     }
     
     // ============ ADMIN - PACKAGES ============
     
     if (route === '/admin/packages' && method === 'GET') {
-      const packages = await mongoListPackagesAdmin()
+      const packages = await listPackagesAdmin()
       return handleCORS(NextResponse.json(packages))
     }
     
@@ -310,7 +313,7 @@ async function handleRoute(request, { params }) {
       }
       
       const data = await request.json()
-      const pkg = await mongoCreatePackage(data)
+      const pkg = await createPackage(data)
       return handleCORS(NextResponse.json(pkg))
     }
     
@@ -322,7 +325,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
-      const pkg = await mongoUpdatePackage(id, data)
+      const pkg = await updatePackage(id, data)
       return handleCORS(NextResponse.json(pkg))
     }
     
@@ -333,14 +336,14 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await mongoDeletePackage(id)
+      await deletePackage(id)
       return handleCORS(NextResponse.json({ message: 'Paket silindi' }))
     }
     
     // ============ ADMIN - CITIES ============
     
     if (route === '/admin/cities' && method === 'GET') {
-      const cities = await mongoListCitiesByNameAsc()
+      const cities = await listCitiesByNameAsc()
       return handleCORS(NextResponse.json(cities))
     }
     
@@ -351,7 +354,7 @@ async function handleRoute(request, { params }) {
       }
       
       const data = await request.json()
-      const city = await mongoCreateCity(data)
+      const city = await createCity(data)
       return handleCORS(NextResponse.json(city))
     }
     
@@ -363,7 +366,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
-      const city = await mongoUpdateCity(id, data)
+      const city = await updateCity(id, data)
       return handleCORS(NextResponse.json(city))
     }
     
@@ -374,7 +377,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await mongoDeleteCity(id)
+      await deleteCity(id)
       return handleCORS(NextResponse.json({ message: 'İl silindi' }))
     }
     
@@ -387,7 +390,7 @@ async function handleRoute(request, { params }) {
       }
       
       const { status } = Object.fromEntries(new URL(request.url).searchParams)
-      const messages = await mongoListMessagesAdmin(status || null, 30)
+      const messages = await listMessagesAdmin(status || null, 30)
       return handleCORS(NextResponse.json(messages))
     }
     
@@ -399,7 +402,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const { status, note } = await request.json()
-      const message = await mongoUpdateMessage(id, { status, note })
+      const message = await updateMessage(id, { status, note })
       return handleCORS(NextResponse.json(message))
     }
     
@@ -411,7 +414,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const payments = await mongoListPaymentsAdmin(500)
+      const payments = await listPaymentsAdmin(500)
       return handleCORS(NextResponse.json(payments))
     }
     
@@ -423,7 +426,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const inspections = await mongoListInspectionsAdmin(500)
+      const inspections = await listInspectionsAdmin(500)
       return handleCORS(NextResponse.json(inspections))
     }
     
@@ -436,11 +439,11 @@ async function handleRoute(request, { params }) {
       
       const id = path[2]
       const { inspectorId } = await request.json()
-      const inspection = await mongoUpdateInspection(id, { inspectorId })
+      const inspection = await updateInspection(id, { inspectorId })
       return handleCORS(NextResponse.json(inspection))
     }
 
-    // ============ ADMIN - FULL DATABASE EXPORT (Mongo → JSON, migration) ============
+    // ============ ADMIN - FULL DATABASE EXPORT (JSON yedek) ============
     // Üretimde DATABASE_EXPORT_TOKEN zorunlu; header: x-database-export-token
     if (route === '/admin/database-export' && (method === 'GET' || method === 'POST')) {
       const token = process.env.DATABASE_EXPORT_TOKEN
@@ -457,7 +460,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz' }, { status: 401 }))
       }
       try {
-        const payload = await mongoExportFullDatabase()
+        const payload = await exportFullDatabase()
         return handleCORS(NextResponse.json(payload))
       } catch (e) {
         console.error('[admin/database-export]', e)
@@ -469,7 +472,37 @@ async function handleRoute(request, { params }) {
         )
       }
     }
-    
+
+    // ============ ADMIN - FULL DATABASE IMPORT (export JSON → DB, mevcut veriyi siler) ============
+    if (route === '/admin/database-import' && method === 'POST') {
+      const token = process.env.DATABASE_EXPORT_TOKEN
+      if (!token || !String(token).trim()) {
+        return handleCORS(
+          NextResponse.json(
+            { error: 'DATABASE_EXPORT_TOKEN sunucuda tanımlı değil' },
+            { status: 503 },
+          ),
+        )
+      }
+      const header = request.headers.get('x-database-export-token')
+      if (!header || header !== token) {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz' }, { status: 401 }))
+      }
+      try {
+        const body = await request.json()
+        const summary = await importFullDatabase(body)
+        return handleCORS(NextResponse.json({ ok: true, summary }))
+      } catch (e) {
+        console.error('[admin/database-import]', e)
+        return handleCORS(
+          NextResponse.json(
+            { error: 'İçe aktarma başarısız', detail: String(e?.message || e) },
+            { status: 500 },
+          ),
+        )
+      }
+    }
+
     // ============ ADMIN - NEWS ============
     
     if (route === '/admin/news' && method === 'GET') {
@@ -478,7 +511,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const news = await mongoListNewsAdmin(200)
+      const news = await listNewsAdmin(200)
       return handleCORS(NextResponse.json(news))
     }
     
@@ -495,7 +528,7 @@ async function handleRoute(request, { params }) {
         .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       
-      const news = await mongoCreateNews(data)
+      const news = await createNews(data)
       return handleCORS(NextResponse.json(news))
     }
     
@@ -507,7 +540,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
-      const news = await mongoUpdateNews(id, data)
+      const news = await updateNews(id, data)
       return handleCORS(NextResponse.json(news))
     }
     
@@ -518,34 +551,34 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await mongoDeleteNews(id)
+      await deleteNews(id)
       return handleCORS(NextResponse.json({ message: 'Haber silindi' }))
     }
     
     // ============ PUBLIC - PACKAGES ============
     
     if (route === '/packages' && method === 'GET') {
-      const packagesWithFeatures = await mongoListPackagesPublicWithFeatures()
+      const packagesWithFeatures = await listPackagesPublicWithFeatures()
       return handleCORS(NextResponse.json(packagesWithFeatures))
     }
     
     // ============ PUBLIC - CITIES ============
     
     if (route === '/cities' && method === 'GET') {
-      const cities = await mongoListCitiesByNameAsc()
+      const cities = await listCitiesByNameAsc()
       return handleCORS(NextResponse.json(cities))
     }
     
     // ============ PUBLIC - NEWS ============
     
     if (route === '/news' && method === 'GET') {
-      const news = await mongoListNewsPublished(12)
+      const news = await listNewsPublished(12)
       return handleCORS(NextResponse.json(news))
     }
     
     if (route.startsWith('/news/') && method === 'GET') {
       const slug = path[path.length - 1]
-      const news = await mongoNewsBySlug(slug)
+      const news = await newsBySlug(slug)
       if (!news) {
         return handleCORS(NextResponse.json({ error: 'Haber bulunamadı' }, { status: 404 }))
       }
@@ -556,7 +589,7 @@ async function handleRoute(request, { params }) {
     
     if (route === '/contact' && method === 'POST') {
       const data = await request.json()
-      const message = await mongoCreateMessage(data)
+      const message = await createMessage(data)
       
       // Mock: SMS bildirimi
       console.log('[MOCK SMS] Admin: Yeni form mesajı geldi')
@@ -573,7 +606,7 @@ async function handleRoute(request, { params }) {
       const data = await request.json()
       
       // Create payment record
-      const payment = await mongoCreatePayment({
+      const payment = await createPayment({
         amount: data.amount,
         packageId: data.packageId,
         schoolName: data.schoolName,
@@ -592,14 +625,14 @@ async function handleRoute(request, { params }) {
       console.log('[MOCK PAYMENT] ParamPOS ödeme isteği:', payment.id)
       
       // Auto-complete for demo (gerçekte ParamPOS callback gelecek)
-      const completedPayment = await mongoUpdatePayment(payment.id, { 
+      const completedPayment = await updatePayment(payment.id, { 
         status: 'completed',
         paidAt: new Date(),
         transactionId: `MOCK-${uuidv4().substring(0, 8)}`
       })
       
       // Create inspection
-      const inspection = await mongoCreateInspection({
+      const inspection = await createInspection({
         schoolName: data.schoolName,
         cityId: data.cityId,
         district: data.district || '',
@@ -630,8 +663,22 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const inspections = await mongoListInspectionsForInspector(authUser.id)
+      const inspections = await listInspectionsForInspector(authUser.id)
       return handleCORS(NextResponse.json(inspections))
+    }
+
+    if (route === '/inspector/inspection/reinspect' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+      const body = await request.json().catch(() => ({}))
+      const inspectionId = body?.inspectionId
+      if (!inspectionId || typeof inspectionId !== 'string') {
+        return handleCORS(NextResponse.json({ error: 'inspectionId gerekli' }, { status: 400 }))
+      }
+      const row = await duplicateInspectionForReinspect(inspectionId, authUser.id)
+      return handleCORS(NextResponse.json(enrichInspectionRow(row)))
     }
     
     // ============ INSPECTOR - INSPECTION DETAIL ============
@@ -643,7 +690,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      const inspection = await mongoGetInspectionDetailForInspector(id)
+      const inspection = await getInspectionDetailForInspector(id)
       
       if (!inspection || inspection.inspectorId !== authUser.id) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
@@ -663,24 +710,24 @@ async function handleRoute(request, { params }) {
       const { inspectionId, findFirstUnanswered = false } = await request.json()
       
       // Get current inspection with position info
-      let inspection = await mongoGetInspectionWithAnswersForStart(inspectionId)
+      let inspection = await getInspectionWithAnswersForStart(inspectionId)
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
       }
       
       // Only update status if it's pending
       if (inspection.status === 'pending') {
-        await mongoUpdateInspection(inspectionId, { status: 'in_progress' })
-        inspection = await mongoGetInspectionWithAnswersForStart(inspectionId)
+        await updateInspection(inspectionId, { status: 'in_progress' })
+        inspection = await getInspectionWithAnswersForStart(inspectionId)
         if (!inspection) {
           return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
         }
       }
       
       // Tüm kategoriler, sonra paket özellikleriyle (kategori adı eşleşmesi) filtrele
-      const allCategories = await mongoListCategoriesWithQuestions()
+      const allCategories = await listCategoriesWithQuestions()
       const packageDoc = inspection.packageId
-        ? await mongoGetPackageById(inspection.packageId)
+        ? await getPackageById(inspection.packageId)
         : null
       const categories = filterCategoriesByPackageFeatures(allCategories, packageDoc)
 
@@ -723,7 +770,7 @@ async function handleRoute(request, { params }) {
               foundUnanswered = true
               
               // Update inspection position
-              await mongoUpdateInspection(inspectionId, { 
+              await updateInspection(inspectionId, { 
                 currentCategoryIndex: catIdx,
                 currentQuestionIndex: qIdx
               })
@@ -790,7 +837,7 @@ async function handleRoute(request, { params }) {
       } = await request.json()
       
       // Get inspection to check status and edit window
-      const inspection = await mongoInspectionScalarsById(inspectionId)
+      const inspection = await inspectionScalarsById(inspectionId)
       
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
@@ -811,17 +858,17 @@ async function handleRoute(request, { params }) {
       }
       
       // Check if answer exists
-      const existing = await mongoFindInspectionAnswerByInspectionAndQuestion(inspectionId, questionId)
+      const existing = await findInspectionAnswerByInspectionAndQuestion(inspectionId, questionId)
       
       let answerRecord
       if (existing) {
-        answerRecord = await mongoUpdateInspectionAnswer(existing.id, { 
+        answerRecord = await updateInspectionAnswer(existing.id, { 
           answer, 
           note: note || '',
           photos: photos ? JSON.stringify(photos) : ''
         })
       } else {
-        answerRecord = await mongoCreateInspectionAnswer({
+        answerRecord = await createInspectionAnswer({
           inspectionId,
           questionId,
           answer,
@@ -832,14 +879,14 @@ async function handleRoute(request, { params }) {
       
       // Update inspection progress (currentQuestionIndex, currentCategoryIndex)
       if (currentCategoryIndex !== undefined && currentQuestionIndex !== undefined) {
-        await mongoUpdateInspection(inspectionId, { 
+        await updateInspection(inspectionId, { 
           currentCategoryIndex,
           currentQuestionIndex
         })
       }
 
       if (removeSkipped === true) {
-        await mongoRemoveSkippedQuestion(inspectionId, questionId).catch(() => {})
+        await removeSkippedQuestion(inspectionId, questionId).catch(() => {})
       }
       
       return handleCORS(NextResponse.json(answerRecord))
@@ -860,7 +907,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Eksik parametre' }, { status: 400 }))
       }
 
-      const insp = await mongoInspectionScalarsById(inspectionId)
+      const insp = await inspectionScalarsById(inspectionId)
       if (!insp || insp.inspectorId !== authUser.id) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
       }
@@ -869,9 +916,9 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Tamamlanmış denetimde soru geçilemez' }, { status: 403 }))
       }
 
-      let updated = await mongoAddSkippedQuestion(inspectionId, questionId)
+      let updated = await addSkippedQuestion(inspectionId, questionId)
       if (currentCategoryIndex !== undefined && currentQuestionIndex !== undefined) {
-        updated = await mongoUpdateInspection(inspectionId, {
+        updated = await updateInspection(inspectionId, {
           currentCategoryIndex,
           currentQuestionIndex,
         })
@@ -921,7 +968,7 @@ async function handleRoute(request, { params }) {
       }
       
       const { inspectionId } = await request.json()
-      const inspection = await mongoUpdateInspection(inspectionId, { 
+      const inspection = await updateInspection(inspectionId, { 
         status: 'completed',
         completedAt: new Date()
       })
@@ -942,7 +989,7 @@ async function handleRoute(request, { params }) {
       
       const { inspectionId, currentCategoryIndex, currentQuestionIndex } = await request.json()
       
-      const inspection = await mongoUpdateInspection(inspectionId, { 
+      const inspection = await updateInspection(inspectionId, { 
         currentCategoryIndex,
         currentQuestionIndex
       })
@@ -962,7 +1009,7 @@ async function handleRoute(request, { params }) {
       }
       
       const inspectionId = path[2]
-      const answers = await mongoInspectionAnswersChronological(inspectionId)
+      const answers = await inspectionAnswersChronological(inspectionId)
       
       // Convert to map format
       const answersMap = {}
@@ -1005,13 +1052,13 @@ async function handleRoute(request, { params }) {
       }
       
       // Get messages count
-      const messages = await mongoMessagesSince(startDate)
+      const messages = await messagesSince(startDate)
       
       // Get inspections (no relation include — avoids Prisma errors on orphan packageId)
-      const inspections = await mongoInspectionsSinceForStats(startDate)
+      const inspections = await inspectionsSinceForStats(startDate)
       
       // Get payments
-      const payments = await mongoPaymentsCompletedSince(startDate)
+      const payments = await paymentsCompletedSince(startDate)
       
       // Calculate totals
       const totalMessages = messages.length
@@ -1073,7 +1120,7 @@ async function handleRoute(request, { params }) {
       const startDate = url.searchParams.get('startDate')
       const endDate = url.searchParams.get('endDate')
       
-      const inspections = await mongoListInspectionsExport(startDate, endDate)
+      const inspections = await listInspectionsExport(startDate, endDate)
       
       return handleCORS(NextResponse.json(inspections))
     }
@@ -1087,15 +1134,15 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[2]
-      const inspection = await mongoGetAdminInspectionReport(id)
+      const inspection = await getAdminInspectionReport(id)
       
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
       }
       
-      const allCats = await mongoListCategoriesWithQuestions()
+      const allCats = await listCategoriesWithQuestions()
       const pkgForReport = inspection.packageId
-        ? await mongoGetPackageById(inspection.packageId)
+        ? await getPackageById(inspection.packageId)
         : null
       const categories = filterCategoriesByPackageFeatures(allCats, pkgForReport)
       
@@ -1118,7 +1165,7 @@ async function handleRoute(request, { params }) {
       const answerId = path[path.length - 1]
       const { note } = await request.json()
       
-      const answer = await mongoUpdateInspectionAnswer(answerId, { note })
+      const answer = await updateInspectionAnswer(answerId, { note })
       
       return handleCORS(NextResponse.json(answer))
     }
@@ -1132,7 +1179,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[2]
-      const inspection = await mongoGetAdminInspectionPdf(id)
+      const inspection = await getAdminInspectionPdf(id)
       
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))

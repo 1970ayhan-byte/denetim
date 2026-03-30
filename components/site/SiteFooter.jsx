@@ -39,6 +39,9 @@ export function SiteFooter() {
               <Link href="/iletisim" className="block hover:text-primary">
                 İletişim
               </Link>
+              <Link href="/giris" className="block hover:text-primary">
+                Personel girişi
+              </Link>
             </div>
           </div>
         </div>

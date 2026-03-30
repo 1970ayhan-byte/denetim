@@ -4,7 +4,7 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ['mongodb', '@prisma/client'],
+    serverComponentsExternalPackages: ['@prisma/client'],
     // Standalone Docker: Prisma engine dosyalarını imaja dahil et
     outputFileTracingIncludes: {
       '/*': ['./node_modules/.prisma/client/**/*'],

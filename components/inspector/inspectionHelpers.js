@@ -44,3 +44,32 @@ export function findNextUnansweredFromInclusive(categories, answersMap, fromCatI
   return null
 }
 
+/** Kategoride kayıtlı cevabı olmayan ilk sorunun indeksi; hepsi doluysa 0 (gözden geçirme). */
+export function firstUnansweredQuestionIndexInCategory(categories, answersMap, catIndex) {
+  const qs = categories[catIndex]?.questions || []
+  for (let qi = 0; qi < qs.length; qi++) {
+    if (!answersMap[qs[qi].id]?.answer) return qi
+  }
+  return 0
+}
+
+/**
+ * Tek kategori için özet: cevaplı / geçildi / henüz işaretlenmemiş.
+ * skippedSet: geçilen soru id'leri (cevap olmasa da)
+ */
+export function getCategoryStats(category, answersMap, skippedSet) {
+  const qs = category?.questions || []
+  let answered = 0
+  let skipped = 0
+  let open = 0
+  for (const q of qs) {
+    if (answersMap[q.id]?.answer) answered++
+    else if (skippedSet.has(q.id)) skipped++
+    else open++
+  }
+  const total = qs.length
+  const resolved = answered + skipped
+  const isComplete = total > 0 && open === 0
+  return { answered, skipped, open, total, resolved, isComplete }
+}
+
