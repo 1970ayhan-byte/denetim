@@ -24,6 +24,8 @@ import {
   mongoUpdatePayment,
   mongoCreateInspection,
   mongoUpdateInspection,
+  mongoAddSkippedQuestion,
+  mongoRemoveSkippedQuestion,
   mongoCreateInspectionAnswer,
   mongoUpdateInspectionAnswer,
   mongoFindInspectionAnswerByInspectionAndQuestion,
@@ -742,7 +744,8 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const { inspectionId, questionId, answer, note, photos, currentCategoryIndex, currentQuestionIndex } = await request.json()
+      const { inspectionId, questionId, answer, note, photos, currentCategoryIndex, currentQuestionIndex } =
+        await request.json()
       
       // Get inspection to check status and edit window
       const inspection = await mongoInspectionScalarsById(inspectionId)
@@ -792,8 +795,45 @@ async function handleRoute(request, { params }) {
           currentQuestionIndex
         })
       }
+
+      await mongoRemoveSkippedQuestion(inspectionId, questionId).catch(() => {})
       
       return handleCORS(NextResponse.json(answerRecord))
+    }
+
+    // ============ INSPECTOR - SKIP QUESTION (GEÇ) ============
+
+    if (route === '/inspector/inspection/skip-question' && method === 'POST') {
+      const authUser = getAuthUser(request)
+      if (!authUser || authUser.role !== 'inspector') {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+      }
+
+      const { inspectionId, questionId, currentCategoryIndex, currentQuestionIndex } =
+        await request.json()
+
+      if (!inspectionId || !questionId) {
+        return handleCORS(NextResponse.json({ error: 'Eksik parametre' }, { status: 400 }))
+      }
+
+      const insp = await mongoInspectionScalarsById(inspectionId)
+      if (!insp || insp.inspectorId !== authUser.id) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
+
+      if (insp.status === 'completed') {
+        return handleCORS(NextResponse.json({ error: 'Tamamlanmış denetimde soru geçilemez' }, { status: 403 }))
+      }
+
+      let updated = await mongoAddSkippedQuestion(inspectionId, questionId)
+      if (currentCategoryIndex !== undefined && currentQuestionIndex !== undefined) {
+        updated = await mongoUpdateInspection(inspectionId, {
+          currentCategoryIndex,
+          currentQuestionIndex,
+        })
+      }
+
+      return handleCORS(NextResponse.json({ inspection: updated }))
     }
     
     // ============ INSPECTOR - UPLOAD PHOTO ============

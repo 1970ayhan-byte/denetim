@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -15,7 +16,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, Menu, X, Phone, Mail, MapPin,
   Shield, FileCheck, Building2, BookOpen, ChevronRight, LogOut,
   Users, Package, MapIcon, MessageSquare, CreditCard, ClipboardList,
-  Settings, Plus, Edit2, Trash2, Eye, Download, Camera, Save, Clock, Zap, Pause
+  Settings, Plus, Edit2, Trash2, Eye, Download, Camera, Save, Clock, Zap, Pause, SkipForward, ListOrdered
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/sonner'
@@ -3569,7 +3570,7 @@ function InspectorPanel({ token, user }) {
 
   const saveAnswer = async (questionId, answer, note = '', photos = [], catIndex = null, qIndex = null) => {
     try {
-      await fetch('/api/inspector/inspection/answer', {
+      const response = await fetch('/api/inspector/inspection/answer', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -3586,17 +3587,33 @@ function InspectorPanel({ token, user }) {
           currentQuestionIndex: qIndex
         })
       })
-      
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        sonnerToast.error(data.error || 'Kaydetme hatası')
+        return
+      }
+
       setAnswers({
         ...answers,
         [questionId]: { answer, note, photos }
       })
-      
-      // Silent save - no toast for autosave
+
+      setSelectedInspection((prev) => {
+        if (!prev) return prev
+        const sk = Array.isArray(prev.skippedQuestionIds) ? prev.skippedQuestionIds : []
+        if (!sk.includes(questionId)) return prev
+        return { ...prev, skippedQuestionIds: sk.filter((id) => id !== questionId) }
+      })
     } catch (error) {
       console.error('Save error:', error)
       sonnerToast.error('Kaydetme hatası')
     }
+  }
+
+  const onSkippedIdsChange = (ids) => {
+    setSelectedInspection((prev) =>
+      prev ? { ...prev, skippedQuestionIds: Array.isArray(ids) ? ids : [] } : null
+    )
   }
   
   // Save progress helper
@@ -3653,6 +3670,7 @@ function InspectorPanel({ token, user }) {
       onCancel={() => setView('list')}
       token={token}
       showFinishOnLoad={allAnsweredOnResume}
+      onSkippedIdsChange={onSkippedIdsChange}
     />
   }
 
@@ -3786,6 +3804,11 @@ function InspectorPanel({ token, user }) {
   )
 }
 
+function normalizeSkippedQuestionIds(raw) {
+  if (!Array.isArray(raw)) return []
+  return [...new Set(raw.filter(Boolean))]
+}
+
 // Inspection Flow Component
 function InspectionFlow({ 
   inspection, 
@@ -3798,7 +3821,8 @@ function InspectionFlow({
   completeInspection,
   onCancel,
   token,
-  showFinishOnLoad = false
+  showFinishOnLoad = false,
+  onSkippedIdsChange,
 }) {
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(initialCategoryIndex)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex)
@@ -3808,6 +3832,11 @@ function InspectionFlow({
   const [uploading, setUploading] = useState(false)
   const [autoSaving, setAutoSaving] = useState(false)
   const [showFinishDialog, setShowFinishDialog] = useState(showFinishOnLoad)
+  const [skippedIds, setSkippedIds] = useState(() =>
+    normalizeSkippedQuestionIds(inspection.skippedQuestionIds)
+  )
+  const [skipSubmitting, setSkipSubmitting] = useState(false)
+  const [skippedSheetOpen, setSkippedSheetOpen] = useState(false)
 
   const currentCategory = categories[currentCategoryIndex] || categories[categories.length - 1]
   const categoryQuestions = currentCategory?.questions || []
@@ -3830,6 +3859,22 @@ function InspectionFlow({
     })
     return totalQ > 0 && answeredQ >= totalQ
   }, [categories, answers])
+
+  useEffect(() => {
+    setSkippedIds(normalizeSkippedQuestionIds(inspection.skippedQuestionIds))
+  }, [inspection.id, inspection.skippedQuestionIds])
+
+  const pendingSkippedList = useMemo(() => {
+    return skippedIds
+      .filter((id) => !answers[id])
+      .map((id) => {
+        for (const cat of categories) {
+          const q = (cat.questions || []).find((qq) => qq.id === id)
+          if (q) return { id, text: q.question, category: cat.name }
+        }
+        return { id, text: 'Soru', category: '—' }
+      })
+  }, [skippedIds, answers, categories])
 
   // If all questions answered and we're at the end, show finish dialog
   useEffect(() => {
@@ -3966,6 +4011,95 @@ function InspectionFlow({
     sonnerToast.success('Cevap kaydedildi', { duration: 1500 })
   }
 
+  const handleSkip = async () => {
+    if (!currentQuestion || skipSubmitting) return
+    const qid = currentQuestion.id
+
+    let nextCatIndex = currentCategoryIndex
+    let nextQIndex = currentQuestionIndex + 1
+    const atEnd = isLastQuestion && isLastCategory
+
+    if (isLastQuestion) {
+      if (isLastCategory) {
+        nextCatIndex = currentCategoryIndex
+        nextQIndex = currentQuestionIndex
+      } else {
+        nextCatIndex = currentCategoryIndex + 1
+        while (nextCatIndex < categories.length && (categories[nextCatIndex]?.questions?.length || 0) === 0) {
+          nextCatIndex++
+        }
+        if (nextCatIndex >= categories.length) {
+          nextCatIndex = currentCategoryIndex
+          nextQIndex = currentQuestionIndex
+        } else {
+          nextQIndex = 0
+        }
+      }
+    }
+
+    setSkipSubmitting(true)
+    try {
+      const response = await fetch('/api/inspector/inspection/skip-question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          inspectionId: inspection.id,
+          questionId: qid,
+          currentCategoryIndex: atEnd ? currentCategoryIndex : nextCatIndex,
+          currentQuestionIndex: atEnd ? currentQuestionIndex : nextQIndex,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        sonnerToast.error(data.error || 'Soru geçilemedi')
+        return
+      }
+      const nextSkipped = normalizeSkippedQuestionIds(data.inspection?.skippedQuestionIds)
+      setSkippedIds(nextSkipped)
+      onSkippedIdsChange?.(nextSkipped)
+
+      if (atEnd) {
+        setShowFinishDialog(true)
+      } else {
+        if (isLastQuestion && nextCatIndex !== currentCategoryIndex) {
+          setCurrentCategoryIndex(nextCatIndex)
+          setCurrentQuestionIndex(0)
+        } else {
+          setCurrentQuestionIndex(nextQIndex)
+        }
+      }
+
+      setLocalAnswer('')
+      setLocalNote('')
+      setLocalPhotos([])
+      sonnerToast.success('Soru geçildi. Geçilenler bölümünden istediğiniz zaman dönebilirsiniz.', {
+        duration: 2800,
+      })
+    } catch (e) {
+      sonnerToast.error('Soru geçilemedi')
+    } finally {
+      setSkipSubmitting(false)
+    }
+  }
+
+  const goToSkippedQuestion = async (questionId) => {
+    for (let ci = 0; ci < categories.length; ci++) {
+      const qs = categories[ci].questions || []
+      for (let qi = 0; qi < qs.length; qi++) {
+        if (qs[qi].id === questionId) {
+          await saveProgress(ci, qi)
+          setCurrentCategoryIndex(ci)
+          setCurrentQuestionIndex(qi)
+          setSkippedSheetOpen(false)
+          return
+        }
+      }
+    }
+  }
+
   const handlePrevious = async () => {
     let newCatIndex = currentCategoryIndex
     let newQIndex = currentQuestionIndex
@@ -4021,11 +4155,6 @@ function InspectionFlow({
     }
   }
 
-  if (!currentQuestion) return null
-
-  const progress = ((currentCategoryIndex * 100) + ((currentQuestionIndex + 1) / totalQuestions * 100)) / categories.length
-  
-  // Count answered questions
   const totalAllQuestions = categories.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
   const answeredCount = Object.keys(answers).length
 
@@ -4049,6 +4178,12 @@ function InspectionFlow({
               <p className="text-sm">Kurum: <span className="font-medium">{inspection.schoolName}</span></p>
               <p className="text-sm">Cevaplanan Soru: <span className="font-medium">{answeredCount} / {totalAllQuestions}</span></p>
             </div>
+            {pendingSkippedList.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm text-amber-900">
+                <strong>{pendingSkippedList.length}</strong> geçilmiş soru henüz cevaplanmadı. Üst menüden Geçilenler
+                listesine girerek tamamlayabilirsiniz.
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={onCancel}>
                 Geri Dön
@@ -4075,6 +4210,8 @@ function InspectionFlow({
     )
   }
 
+  const progress = ((currentCategoryIndex * 100) + ((currentQuestionIndex + 1) / totalQuestions * 100)) / categories.length
+
   return (
     <div className="min-h-screen bg-muted/20">
       {/* Header */}
@@ -4085,10 +4222,24 @@ function InspectionFlow({
               <h2 className="text-lg font-bold">{inspection.schoolName}</h2>
               <p className="text-sm text-muted-foreground">{currentCategory.name}</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {autoSaving && (
                 <span className="text-xs text-green-600 animate-pulse">💾 Kaydediliyor...</span>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSkippedSheetOpen(true)}
+                className="text-amber-800 border-amber-300 hover:bg-amber-50"
+              >
+                <ListOrdered className="h-4 w-4 mr-1" />
+                Geçilenler
+                {pendingSkippedList.length > 0 && (
+                  <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 h-5 min-w-5 text-xs">
+                    {pendingSkippedList.length}
+                  </Badge>
+                )}
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePause} className="text-orange-600 border-orange-300 hover:bg-orange-50">
                 <Pause className="h-4 w-4 mr-1" />
                 Ara Ver
@@ -4231,16 +4382,26 @@ function InspectionFlow({
         </Card>
 
         {/* Navigation */}
-        <div className="flex gap-4 mt-6">
+        <div className="flex flex-wrap gap-2 mt-6">
           {(currentQuestionIndex > 0 || currentCategoryIndex > 0) && (
             <Button 
               variant="outline" 
               onClick={handlePrevious}
-              className="flex-1"
+              className="flex-1 min-w-[140px]"
             >
               ← Önceki Soru
             </Button>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSkip}
+            disabled={skipSubmitting}
+            className="flex-1 min-w-[100px] border-amber-300 text-amber-900 hover:bg-amber-50"
+          >
+            <SkipForward className="h-4 w-4 mr-2 inline" />
+            {skipSubmitting ? '…' : 'GEÇ'}
+          </Button>
           {isLastQuestion && isLastCategory ? (
             <Button 
               onClick={async () => {
@@ -4249,7 +4410,7 @@ function InspectionFlow({
                 }
                 setShowFinishDialog(true)
               }}
-              className="flex-1 bg-green-600 hover:bg-green-700"
+              className="flex-1 min-w-[160px] bg-green-600 hover:bg-green-700"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               DENETİMİ BİTİR
@@ -4258,13 +4419,44 @@ function InspectionFlow({
             <Button 
               onClick={handleNext}
               disabled={!localAnswer}
-              className="flex-1"
+              className="flex-1 min-w-[140px]"
             >
               Sonraki Soru →
             </Button>
           )}
         </div>
       </div>
+
+      <Sheet open={skippedSheetOpen} onOpenChange={setSkippedSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <ListOrdered className="h-5 w-5" />
+              Geçilenler
+            </SheetTitle>
+            <SheetDescription>
+              Henüz cevaplamadığınız geçilmiş sorular burada listelenir. Bir soruya dokunarak o soruya gidebilirsiniz.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-2">
+            {pendingSkippedList.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Şu an geçilmiş ve cevapsız soru yok.</p>
+            ) : (
+              pendingSkippedList.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => goToSkippedQuestion(row.id)}
+                  className="w-full text-left rounded-lg border p-3 hover:bg-muted/60 transition-colors"
+                >
+                  <p className="text-xs text-muted-foreground">{row.category}</p>
+                  <p className="text-sm font-medium line-clamp-3">{row.text}</p>
+                </button>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Finish Inspection Dialog */}
       <Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
@@ -4292,6 +4484,18 @@ function InspectionFlow({
                 <p className="text-sm text-yellow-800 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4" />
                   Dikkat: Bazı sorular henüz cevaplanmamış.
+                </p>
+              </div>
+            )}
+
+            {pendingSkippedList.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                <p className="text-sm text-amber-900 flex items-center gap-2">
+                  <ListOrdered className="h-4 w-4 shrink-0" />
+                  <span>
+                    <strong>{pendingSkippedList.length}</strong> geçilmiş soru cevaplanmayı bekliyor. Geçilenler
+                    listesinden tamamlayabilirsiniz.
+                  </span>
                 </p>
               </div>
             )}
@@ -4518,13 +4722,10 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
                               <Badge className={
                                 savedAnswer.answer === 'uygun' ? 'bg-green-100 text-green-800' :
                                 savedAnswer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' :
-                                savedAnswer.answer === 'goreceli' ? 'bg-yellow-100 text-yellow-800' :
                                 'bg-muted text-muted-foreground'
                               }>
                                 {savedAnswer.answer === 'uygun' ? 'UYGUN' :
-                                 savedAnswer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' :
-                                 savedAnswer.answer === 'goreceli' ? 'GÖRECELİ' :
-                                 String(savedAnswer.answer || '—')}
+                                 savedAnswer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : '—'}
                               </Badge>
                               {savedAnswer.note && (
                                 <span className="text-xs text-muted-foreground">📝 Not var</span>

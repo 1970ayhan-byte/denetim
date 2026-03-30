@@ -90,6 +90,7 @@ model Inspection {
   capacity              String      @default("")
   currentCategoryIndex  Int         @default(0)
   currentQuestionIndex  Int         @default(0)
+  skippedQuestionIds    String[]    @default([])
   createdAt             DateTime    @default(now())
   completedAt           DateTime?
   
@@ -105,7 +106,7 @@ model InspectionAnswer {
   id              String      @id @default(uuid()) @map("_id")
   inspectionId    String
   questionId      String
-  answer          String      // "uygun", "uygun_degil", "goreceli"
+  answer          String      // "uygun" | "uygun_degil"
   note            String      @default("")
   photos          String      @default("") // JSON string array
   createdAt       DateTime    @default(now())
