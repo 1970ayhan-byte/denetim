@@ -2920,7 +2920,13 @@ function InspectionsTab({ token }) {
     const response = await fetch('/api/admin/inspections', { 
       headers: { Authorization: `Bearer ${token}` } 
     })
-    setInspections(await response.json())
+    const data = await response.json()
+    if (!response.ok) {
+      sonnerToast.error(data.error || 'Denetimler yüklenemedi')
+      setInspections([])
+      return
+    }
+    setInspections(Array.isArray(data) ? data : [])
   }
 
   const viewReport = async (inspection) => {
@@ -3412,7 +3418,13 @@ function InspectorPanel({ token, user }) {
     const response = await fetch('/api/inspector/inspections', { 
       headers: { Authorization: `Bearer ${token}` } 
     })
-    setInspections(await response.json())
+    const data = await response.json()
+    if (!response.ok) {
+      sonnerToast.error(data.error || 'Denetimler yüklenemedi')
+      setInspections([])
+      return
+    }
+    setInspections(Array.isArray(data) ? data : [])
   }
 
   // 6 saat düzenleme kontrolü
@@ -3451,8 +3463,12 @@ function InspectorPanel({ token, user }) {
       })
       
       const data = await response.json()
+      if (!response.ok) {
+        sonnerToast.error(data.error || 'Düzenleme başlatılamadı')
+        return
+      }
       setSelectedInspection(data.inspection)
-      setCategories(data.categories)
+      setCategories(Array.isArray(data.categories) ? data.categories : [])
       setAnswers(data.answersMap || {})
       setEditMode(true)
       setView('edit')
@@ -3477,14 +3493,18 @@ function InspectorPanel({ token, user }) {
       })
       
       const data = await response.json()
+      if (!response.ok) {
+        sonnerToast.error(data.error || 'Denetim başlatılamadı')
+        return
+      }
       setSelectedInspection(data.inspection)
-      setCategories(data.categories)
+      setCategories(Array.isArray(data.categories) ? data.categories : [])
       
       // Set answers from response
       setAnswers(data.answersMap || {})
       
       // Resume from saved/calculated position
-      if (isResume && (inspection.status === 'in_progress' || data.inspection.status === 'in_progress')) {
+      if (isResume && (inspection.status === 'in_progress' || data.inspection?.status === 'in_progress')) {
         const resumeCatIndex = data.inspection.currentCategoryIndex || 0
         const resumeQIndex = data.inspection.currentQuestionIndex || 0
         setCurrentCategoryIndex(resumeCatIndex)

@@ -29,6 +29,19 @@ import {
   mongoUpdateInspectionAnswer,
   mongoFindInspectionAnswerByInspectionAndQuestion,
 } from '@/lib/mongoWrites'
+import {
+  mongoListPaymentsAdmin,
+  mongoListInspectionsAdmin,
+  mongoListInspectionsForInspector,
+  mongoListInspectionsExport,
+  mongoGetInspectionDetailForInspector,
+  mongoGetInspectionWithAnswersForStart,
+  mongoInspectionAnswersChronological,
+  mongoGetAdminInspectionReport,
+  mongoGetAdminInspectionPdf,
+  mongoInspectionsSinceForStats,
+  mongoListQuestionsWithCategory,
+} from '@/lib/mongoReads'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
@@ -159,13 +172,7 @@ async function handleRoute(request, { params }) {
     
     if (route === '/admin/questions' && method === 'GET') {
       const { categoryId } = Object.fromEntries(new URL(request.url).searchParams)
-      const where = categoryId ? { categoryId } : {}
-      
-      const questions = await prisma.question.findMany({
-        where,
-        orderBy: { order: 'asc' },
-        include: { category: true }
-      })
+      const questions = await mongoListQuestionsWithCategory(categoryId || null)
       return handleCORS(NextResponse.json(questions))
     }
     
@@ -400,11 +407,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const payments = await prisma.payment.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: { package: true, city: true },
-        take: 500 // Limit for performance
-      })
+      const payments = await mongoListPaymentsAdmin(500)
       return handleCORS(NextResponse.json(payments))
     }
     
@@ -416,16 +419,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const inspections = await prisma.inspection.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: { 
-          city: true, 
-          package: true, 
-          inspector: { select: { name: true, phone: true } },
-          payment: true
-        },
-        take: 500 // Limit for performance
-      })
+      const inspections = await mongoListInspectionsAdmin(500)
       return handleCORS(NextResponse.json(inspections))
     }
     
@@ -623,11 +617,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const inspections = await prisma.inspection.findMany({
-        where: { inspectorId: authUser.id },
-        orderBy: { createdAt: 'desc' },
-        include: { city: true, package: true, payment: true }
-      })
+      const inspections = await mongoListInspectionsForInspector(authUser.id)
       return handleCORS(NextResponse.json(inspections))
     }
     
@@ -640,16 +630,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      const inspection = await prisma.inspection.findUnique({
-        where: { id },
-        include: { 
-          city: true, 
-          package: true,
-          answers: {
-            include: { question: { include: { category: true } } }
-          }
-        }
-      })
+      const inspection = await mongoGetInspectionDetailForInspector(id)
       
       if (!inspection || inspection.inspectorId !== authUser.id) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
@@ -669,18 +650,18 @@ async function handleRoute(request, { params }) {
       const { inspectionId, findFirstUnanswered = false } = await request.json()
       
       // Get current inspection with position info
-      let inspection = await prisma.inspection.findUnique({
-        where: { id: inspectionId },
-        include: { answers: true }
-      })
+      let inspection = await mongoGetInspectionWithAnswersForStart(inspectionId)
+      if (!inspection) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
       
       // Only update status if it's pending
       if (inspection.status === 'pending') {
         await mongoUpdateInspection(inspectionId, { status: 'in_progress' })
-        inspection = await prisma.inspection.findUnique({
-          where: { id: inspectionId },
-          include: { answers: true }
-        })
+        inspection = await mongoGetInspectionWithAnswersForStart(inspectionId)
+        if (!inspection) {
+          return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+        }
       }
       
       // Get all questions for inspection
@@ -691,7 +672,7 @@ async function handleRoute(request, { params }) {
       
       // Build answers map
       const answersMap = {}
-      inspection.answers.forEach(a => {
+      ;(inspection.answers || []).forEach(a => {
         answersMap[a.questionId] = {
           answer: a.answer,
           note: a.note || '',
@@ -898,11 +879,7 @@ async function handleRoute(request, { params }) {
       }
       
       const inspectionId = path[2]
-      const answers = await prisma.inspectionAnswer.findMany({
-        where: { inspectionId },
-        include: { question: true },
-        orderBy: { createdAt: 'asc' }
-      })
+      const answers = await mongoInspectionAnswersChronological(inspectionId)
       
       // Convert to map format
       const answersMap = {}
@@ -949,11 +926,8 @@ async function handleRoute(request, { params }) {
         where: { createdAt: { gte: startDate } }
       })
       
-      // Get inspections
-      const inspections = await prisma.inspection.findMany({
-        where: { createdAt: { gte: startDate } },
-        include: { package: true }
-      })
+      // Get inspections (no relation include — avoids Prisma errors on orphan packageId)
+      const inspections = await mongoInspectionsSinceForStats(startDate)
       
       // Get payments
       const payments = await prisma.payment.findMany({
@@ -1023,23 +997,7 @@ async function handleRoute(request, { params }) {
       const startDate = url.searchParams.get('startDate')
       const endDate = url.searchParams.get('endDate')
       
-      const where = {}
-      if (startDate && endDate) {
-        where.createdAt = {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      }
-      
-      const inspections = await prisma.inspection.findMany({
-        where,
-        include: {
-          city: true,
-          package: true,
-          inspector: { select: { name: true, phone: true } }
-        },
-        orderBy: { createdAt: 'desc' }
-      })
+      const inspections = await mongoListInspectionsExport(startDate, endDate)
       
       return handleCORS(NextResponse.json(inspections))
     }
@@ -1053,18 +1011,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[2]
-      const inspection = await prisma.inspection.findUnique({
-        where: { id },
-        include: {
-          city: true,
-          package: true,
-          inspector: { select: { name: true, phone: true } },
-          answers: {
-            include: { question: { include: { category: true } } },
-            orderBy: { question: { order: 'asc' } }
-          }
-        }
-      })
+      const inspection = await mongoGetAdminInspectionReport(id)
       
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
@@ -1109,23 +1056,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[2]
-      const inspection = await prisma.inspection.findUnique({
-        where: { id },
-        include: {
-          city: true,
-          package: true,
-          inspector: { select: { name: true, phone: true } },
-          answers: {
-            where: {
-              OR: [
-                { answer: 'uygun_degil' },
-                { answer: 'goreceli' }
-              ]
-            },
-            include: { question: { include: { category: true } } }
-          }
-        }
-      })
+      const inspection = await mongoGetAdminInspectionPdf(id)
       
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
