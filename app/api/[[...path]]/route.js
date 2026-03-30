@@ -58,6 +58,7 @@ import {
   mongoMessagesSince,
   mongoPaymentsCompletedSince,
 } from '@/lib/mongoReads'
+import { mongoExportFullDatabase } from '@/lib/mongoDatabaseExport'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
@@ -66,7 +67,10 @@ import { v4 as uuidv4 } from 'uuid'
 function handleCORS(response) {
   response.headers.set('Access-Control-Allow-Origin', '*')
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  response.headers.set(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, x-database-export-token',
+  )
   return response
 }
 
@@ -434,6 +438,36 @@ async function handleRoute(request, { params }) {
       const { inspectorId } = await request.json()
       const inspection = await mongoUpdateInspection(id, { inspectorId })
       return handleCORS(NextResponse.json(inspection))
+    }
+
+    // ============ ADMIN - FULL DATABASE EXPORT (Mongo → JSON, migration) ============
+    // Üretimde DATABASE_EXPORT_TOKEN zorunlu; header: x-database-export-token
+    if (route === '/admin/database-export' && (method === 'GET' || method === 'POST')) {
+      const token = process.env.DATABASE_EXPORT_TOKEN
+      if (!token || !String(token).trim()) {
+        return handleCORS(
+          NextResponse.json(
+            { error: 'DATABASE_EXPORT_TOKEN sunucuda tanımlı değil' },
+            { status: 503 },
+          ),
+        )
+      }
+      const header = request.headers.get('x-database-export-token')
+      if (!header || header !== token) {
+        return handleCORS(NextResponse.json({ error: 'Yetkisiz' }, { status: 401 }))
+      }
+      try {
+        const payload = await mongoExportFullDatabase()
+        return handleCORS(NextResponse.json(payload))
+      } catch (e) {
+        console.error('[admin/database-export]', e)
+        return handleCORS(
+          NextResponse.json(
+            { error: 'Export başarısız', detail: String(e?.message || e) },
+            { status: 500 },
+          ),
+        )
+      }
     }
     
     // ============ ADMIN - NEWS ============

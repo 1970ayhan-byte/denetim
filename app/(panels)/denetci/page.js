@@ -1,7 +1,7 @@
 'use client'
 
 import { RequireRole } from '@/components/auth/RequireRole'
-import { InspectorPanel } from '@/components/inspector/InspectorPanel'
+import { InspectorInspectionList } from '@/components/inspector/InspectorInspectionList'
 import { useAuth } from '@/components/providers/AuthProvider'
 
 export default function DenetciPage() {
@@ -9,7 +9,7 @@ export default function DenetciPage() {
 
   return (
     <RequireRole role="inspector">
-      <InspectorPanel token={token} user={user} />
+      <InspectorInspectionList token={token} user={user} />
     </RequireRole>
   )
 }
