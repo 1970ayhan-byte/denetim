@@ -32,6 +32,7 @@ export function InspectionFlow({
   token,
   showFinishOnLoad = false,
   onSkippedIdsChange,
+  onAnswerCleared,
 }) {
   const [currentCategoryIndex, setCurrentCategoryIndex] = useState(initialCategoryIndex)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(initialQuestionIndex)
@@ -304,11 +305,10 @@ export function InspectionFlow({
       const nextSkipped = normalizeSkippedQuestionIds(data.inspection?.skippedQuestionIds)
       setSkippedIds(nextSkipped)
       onSkippedIdsChange?.(nextSkipped)
+      onAnswerCleared?.(qid)
 
       const mergedAnswers = { ...answers }
-      if (localAnswer) {
-        mergedAnswers[qid] = { answer: localAnswer, note: localNote, photos: localPhotos }
-      }
+      delete mergedAnswers[qid]
 
       if (atEnd) {
         setShowFinishDialog(true)
@@ -331,9 +331,10 @@ export function InspectionFlow({
       setLocalAnswer('')
       setLocalNote('')
       setLocalPhotos([])
-      sonnerToast.success('Soru geçildi. Geçilenler bölümünden istediğiniz zaman dönebilirsiniz.', {
-        duration: 2800,
-      })
+      sonnerToast.success(
+        'Soru geçildi. Bu soruya ait kayıtlı cevap silindi; Geçilenler listesinden tekrar dönebilirsiniz.',
+        { duration: 3200 },
+      )
     } catch (e) {
       sonnerToast.error('Soru geçilemedi')
     } finally {
@@ -412,12 +413,45 @@ export function InspectionFlow({
     setCurrentQuestionIndex(newQIndex)
   }
 
-  const canCompleteInspection = skippedIds.length === 0
+  const everyQuestionAnsweredOrSkipped = useMemo(() => {
+    if (!categories?.length) return false
+    let total = 0
+    for (const cat of categories) {
+      for (const q of cat.questions || []) {
+        total++
+        const ans = answers[q.id]
+        const hasAnswer = Boolean(ans?.answer)
+        const isSkipped = skippedSet.has(q.id)
+        if (!hasAnswer && !isSkipped) return false
+      }
+    }
+    return total >= 0
+  }, [categories, answers, skippedSet])
+
+  const canCompleteInspection = everyQuestionAnsweredOrSkipped
+
+  /** Son soru hariç hepsi cevaplı veya geçilmiş mi (son soruda bitir tuşunu açmak için). */
+  const otherQuestionsAllResolved = useMemo(() => {
+    if (!categories?.length || !currentQuestion?.id) return false
+    for (const cat of categories) {
+      for (const q of cat.questions || []) {
+        if (q.id === currentQuestion.id) continue
+        const ans = answers[q.id]
+        const hasAnswer = Boolean(ans?.answer)
+        const isSkipped = skippedSet.has(q.id)
+        if (!hasAnswer && !isSkipped) return false
+      }
+    }
+    return true
+  }, [categories, answers, skippedSet, currentQuestion?.id])
+
+  const denetimiBitirEnabled =
+    isLastQuestion && isLastCategory ? otherQuestionsAllResolved : canCompleteInspection
 
   const handleFinishInspection = async () => {
     if (!canCompleteInspection) {
       sonnerToast.error(
-        'Geçilmiş sorular varken denetim tamamlanamaz. Geçilenler listesinden tüm soruları tamamlayın.',
+        'Bazı sorular ne cevaplandı ne de geçildi. Eksikleri tamamlayın veya Geç ile işaretleyin.',
       )
       return
     }
@@ -459,6 +493,7 @@ export function InspectionFlow({
         skippedNeedingAnswerCount={skippedNeedingAnswerCount}
         skippedWithAnswerCount={skippedWithAnswerCount}
         canCompleteInspection={canCompleteInspection}
+        showUnansweredWarning={!everyQuestionAnsweredOrSkipped}
         onBack={onCancel}
         onConfirmComplete={handleFinishInspection}
       />
@@ -546,17 +581,23 @@ export function InspectionFlow({
               {isLastQuestion && isLastCategory ? (
                 <Button
                   type="button"
-                  disabled={!canCompleteInspection}
+                  disabled={!denetimiBitirEnabled}
                   title={
-                    !canCompleteInspection
-                      ? 'Geçilmiş sorular varken denetim tamamlanamaz'
-                      : undefined
+                    !denetimiBitirEnabled
+                      ? 'Önceki sorularda veya kategorilerde eksik var'
+                      : !canCompleteInspection
+                        ? 'Son soruyu Uygun / Uygun değil ile seçin veya Geç kullanın; ardından tamamlayın'
+                        : undefined
                   }
                   onClick={async () => {
-                    if (!canCompleteInspection) {
+                    if (!otherQuestionsAllResolved) {
                       sonnerToast.error(
-                        'Geçilmiş sorular varken denetim tamamlanamaz. Önce Geçilenler listesini bitirin.',
+                        'Önceki sorularda veya kategorilerde eksik var. Eksikleri tamamlayın veya Geç ile işaretleyin.',
                       )
+                      return
+                    }
+                    if (skippedSet.has(currentQuestion.id)) {
+                      setShowFinishDialog(true)
                       return
                     }
                     if (localAnswer) {
@@ -569,8 +610,17 @@ export function InspectionFlow({
                         currentQuestionIndex,
                         true
                       )
+                      setShowFinishDialog(true)
+                      return
                     }
-                    setShowFinishDialog(true)
+                    if (canCompleteInspection) {
+                      setShowFinishDialog(true)
+                      return
+                    }
+                    sonnerToast.info(
+                      'Önce bu soruya Uygun veya Uygun değil seçin; atlamak için Geç kullanın. Seçim otomatik kaydedilir.',
+                      { duration: 4000 },
+                    )
                   }}
                   className="min-h-[48px] flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold touch-manipulation disabled:opacity-50"
                 >
@@ -609,6 +659,7 @@ export function InspectionFlow({
         skippedNeedingAnswerCount={skippedNeedingAnswerCount}
         skippedWithAnswerCount={skippedWithAnswerCount}
         canCompleteInspection={canCompleteInspection}
+        showUnansweredWarning={!everyQuestionAnsweredOrSkipped}
         onConfirmComplete={handleFinishInspection}
       />
     </div>

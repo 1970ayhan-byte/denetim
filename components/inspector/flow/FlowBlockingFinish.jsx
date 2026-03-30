@@ -12,6 +12,7 @@ export function FlowBlockingFinish({
   skippedNeedingAnswerCount,
   skippedWithAnswerCount,
   canCompleteInspection = true,
+  showUnansweredWarning = false,
   onBack,
   onConfirmComplete,
 }) {
@@ -44,12 +45,19 @@ export function FlowBlockingFinish({
             skippedNeedingAnswerCount={skippedNeedingAnswerCount}
             skippedWithAnswerCount={skippedWithAnswerCount}
           />
+          {showUnansweredWarning && (
+            <div className="flex gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <p>
+                Bazı sorular ne cevaplandı ne de geçildi; tamamlamak için eksikleri kapatın.
+              </p>
+            </div>
+          )}
           {!canCompleteInspection && (
             <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <p>
-                Geçilmiş soru kaydı varken tamamlama kapalıdır. Önce &quot;Geçilen&quot; soruları
-                cevaplayıp listeden çıkarın.
+                Tüm sorular ya cevaplanmalı ya da <strong>Geç</strong> ile işaretlenmelidir.
               </p>
             </div>
           )}

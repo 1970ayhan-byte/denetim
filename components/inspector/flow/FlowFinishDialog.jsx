@@ -14,6 +14,7 @@ export function FlowFinishDialog({
   skippedNeedingAnswerCount,
   skippedWithAnswerCount,
   canCompleteInspection = true,
+  showUnansweredWarning = false,
   onConfirmComplete,
 }) {
   return (
@@ -62,8 +63,8 @@ export function FlowFinishDialog({
             <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <p>
-                Geçilmiş soru kaydı varken tamamlama kapalıdır. Önce &quot;Geçilen&quot; soruları
-                cevaplayıp listeden çıkarın.
+                Tüm sorular ya cevaplanmalı ya da <strong>Geç</strong> ile işaretlenmelidir. Son soruda
+                ileri yoksa, geçtiyseniz bu koşul sağlandığında &quot;Denetimi bitir&quot; açılır.
               </p>
             </div>
           )}

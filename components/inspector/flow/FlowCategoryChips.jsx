@@ -3,7 +3,7 @@
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-/** Mobil / tablet: yatay kategori şeridi */
+/** Kategoriler: kaydırma yok, flex-wrap ile satır satır hepsi görünür */
 export function FlowCategoryChips({
   categories,
   statsList,
@@ -12,11 +12,11 @@ export function FlowCategoryChips({
 }) {
   return (
     <div className="border-b border-zinc-200 bg-zinc-50/80 px-2 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500 px-2 mb-1.5">
+      <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
         Kategori seçin
       </p>
       <div
-        className="flex gap-2 overflow-x-auto pb-1 -mx-0.5 px-1 snap-x snap-mandatory [scrollbar-width:thin]"
+        className="grid grid-cols-[repeat(auto-fill,minmax(148px,1fr))] gap-2 px-1 pb-1 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]"
         role="tablist"
         aria-label="Kategoriler"
       >
@@ -31,7 +31,7 @@ export function FlowCategoryChips({
               aria-selected={active}
               onClick={() => onSelectCategory(i)}
               className={cn(
-                'snap-start shrink-0 rounded-xl border-2 px-3 py-2 min-h-[44px] max-w-[200px] text-left transition-colors touch-manipulation sm:max-w-[220px]',
+                'min-h-[44px] w-full rounded-xl border-2 px-3 py-2 text-left transition-colors touch-manipulation',
                 active
                   ? 'border-amber-500 bg-amber-50 border-opacity-100'
                   : 'border-zinc-200 bg-white',

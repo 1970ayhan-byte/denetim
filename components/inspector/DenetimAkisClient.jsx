@@ -147,6 +147,14 @@ export function DenetimAkisClient({ token }) {
     )
   }
 
+  const onAnswerCleared = (questionId) => {
+    setAnswers((prev) => {
+      const next = { ...prev }
+      delete next[questionId]
+      return next
+    })
+  }
+
   const saveProgress = async (catIndex, qIndex) => {
     try {
       await fetch('/api/inspector/inspection/progress', {
@@ -216,6 +224,7 @@ export function DenetimAkisClient({ token }) {
       token={token}
       showFinishOnLoad={allAnsweredOnResume}
       onSkippedIdsChange={onSkippedIdsChange}
+      onAnswerCleared={onAnswerCleared}
     />
   )
 }

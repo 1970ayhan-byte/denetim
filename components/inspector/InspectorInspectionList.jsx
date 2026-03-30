@@ -16,10 +16,9 @@ import {
   Zap,
   RefreshCw,
   LayoutGrid,
-  CopyPlus,
 } from 'lucide-react'
 import { toast as sonnerToast } from 'sonner'
-import { fetchInspectorInspections, postInspectorReinspect } from './inspectorApi'
+import { fetchInspectorInspections } from './inspectorApi'
 import { cn } from '@/lib/utils'
 
 const FILTERS = [
@@ -34,8 +33,6 @@ export function InspectorInspectionList({ token, user }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [refreshing, setRefreshing] = useState(false)
-  const [duplicatingId, setDuplicatingId] = useState(null)
-
   const loadInspections = useCallback(async () => {
     const { ok, inspections: list, error } = await fetchInspectorInspections(token)
     if (!ok) {
@@ -62,25 +59,6 @@ export function InspectorInspectionList({ token, user }) {
     setRefreshing(true)
     await loadInspections()
     setRefreshing(false)
-  }
-
-  const onReinspect = async (sourceId) => {
-    const okConfirm = window.confirm(
-      'Aynı okul ve paket bilgisiyle yeni bir denetim oluşturulacak; tüm soru cevapları boş başlayacak. Devam edilsin mi?',
-    )
-    if (!okConfirm) return
-    setDuplicatingId(sourceId)
-    try {
-      const { ok, error } = await postInspectorReinspect(token, sourceId)
-      if (!ok) {
-        sonnerToast.error(error)
-        return
-      }
-      sonnerToast.success('Yeni denetim oluşturuldu. Listede “Bekleyen” olarak görünür.')
-      await loadInspections()
-    } finally {
-      setDuplicatingId(null)
-    }
   }
 
   const filtered = useMemo(() => {
@@ -289,38 +267,23 @@ export function InspectorInspectionList({ token, user }) {
                               </Link>
                             </Button>
                           )}
-                          {insp.status === 'completed' && (
+                          {insp.status === 'completed' && isEditable(insp.completedAt) && (
                             <>
                               <Button
-                                type="button"
-                                variant="outline"
                                 size="sm"
-                                className="h-9 gap-1.5 rounded-lg px-3 text-sm"
-                                disabled={duplicatingId === insp.id}
-                                onClick={() => onReinspect(insp.id)}
+                                className="h-9 gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-medium text-white hover:bg-amber-600"
+                                asChild
                               >
-                                <CopyPlus className={cn('h-4 w-4', duplicatingId === insp.id && 'animate-pulse')} />
-                                {duplicatingId === insp.id ? 'Bekleyin…' : 'Yeniden denetle'}
+                                <Link href={`/denetci/denetim/${insp.id}/duzenle`}>
+                                  <Edit2 className="h-4 w-4" />
+                                  Düzenle
+                                </Link>
                               </Button>
-                              {isEditable(insp.completedAt) && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    className="h-9 gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-medium text-white hover:bg-amber-600"
-                                    asChild
-                                  >
-                                    <Link href={`/denetci/denetim/${insp.id}/duzenle`}>
-                                      <Edit2 className="h-4 w-4" />
-                                      Düzenle
-                                    </Link>
-                                  </Button>
-                                  {getRemainingTime(insp.completedAt) ? (
-                                    <span className="w-full basis-full text-[11px] font-medium text-amber-800 sm:text-xs">
-                                      {getRemainingTime(insp.completedAt)}
-                                    </span>
-                                  ) : null}
-                                </>
-                              )}
+                              {getRemainingTime(insp.completedAt) ? (
+                                <span className="w-full basis-full text-[11px] font-medium text-amber-800 sm:text-xs">
+                                  {getRemainingTime(insp.completedAt)}
+                                </span>
+                              ) : null}
                             </>
                           )}
                         </>

@@ -72,6 +72,33 @@ export function InspectionsTab({ token }) {
     setInspections(Array.isArray(data) ? data : [])
   }
 
+  const handleDeleteInspection = async (insp) => {
+    const ok = confirm(
+      `"${insp.schoolName}" denetimini kalıcı olarak silmek istiyor musunuz? Tüm cevaplar da silinir. Bu işlem geri alınamaz.`,
+    )
+    if (!ok) return
+    try {
+      const res = await fetch(`/api/admin/inspections/${insp.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        sonnerToast.error(payload.error || 'Silinemedi')
+        return
+      }
+      sonnerToast.success('Denetim silindi')
+      if (selectedInspection?.id === insp.id) {
+        setShowDetailDialog(false)
+        setSelectedInspection(null)
+        setFullReportData(null)
+      }
+      loadInspections()
+    } catch {
+      sonnerToast.error('Silme hatası')
+    }
+  }
+
   const viewReport = async (inspection) => {
     const response = await fetch(`/api/admin/inspection/${inspection.id}/report`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -358,16 +385,26 @@ export function InspectionsTab({ token }) {
                     month: 'short',
                     day: 'numeric'
                   })}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    {insp.status === 'completed' ? (
-                      <Button size="sm" variant="default" onClick={() => viewReport(insp)}>
-                        <Eye className="h-3 w-3 mr-1" /> Rapor
+                  <TableCell className="text-right">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {insp.status === 'completed' ? (
+                        <Button size="sm" variant="default" onClick={() => viewReport(insp)}>
+                          <Eye className="mr-1 h-3 w-3" /> Rapor
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" disabled>
+                          <Clock className="mr-1 h-3 w-3" /> Bekliyor
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteInspection(insp)}
+                        aria-label="Denetimi sil"
+                      >
+                        <Trash2 className="h-3 w-3" />
                       </Button>
-                    ) : (
-                      <Button size="sm" variant="outline" disabled>
-                        <Clock className="h-3 w-3 mr-1" /> Bekliyor
-                      </Button>
-                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
