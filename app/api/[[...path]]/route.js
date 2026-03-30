@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { mongoCreateQuestion, mongoUpdateQuestion, mongoDeleteQuestion } from '@/lib/questionsMongo'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
@@ -158,7 +159,8 @@ async function handleRoute(request, { params }) {
       if (data.penaltyType === 'none') {
         data.penaltyType = ''
       }
-      const question = await prisma.question.create({ data })
+      // Native Mongo insert: Prisma writes require a replica set; standalone MongoDB rejects them.
+      const question = await mongoCreateQuestion(data)
       return handleCORS(NextResponse.json(question))
     }
     
@@ -174,10 +176,7 @@ async function handleRoute(request, { params }) {
       if (data.penaltyType === 'none') {
         data.penaltyType = ''
       }
-      const question = await prisma.question.update({
-        where: { id },
-        data
-      })
+      const question = await mongoUpdateQuestion(id, data)
       return handleCORS(NextResponse.json(question))
     }
     
@@ -188,7 +187,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await prisma.question.delete({ where: { id } })
+      await mongoDeleteQuestion(id)
       return handleCORS(NextResponse.json({ message: 'Soru silindi' }))
     }
     
@@ -1190,9 +1189,10 @@ async function handleRoute(request, { params }) {
     
   } catch (error) {
     console.error('API Error:', error)
+    const status = typeof error.statusCode === 'number' ? error.statusCode : 500
     return handleCORS(NextResponse.json(
       { error: error.message || 'Internal server error' },
-      { status: 500 }
+      { status }
     ))
   }
 }

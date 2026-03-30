@@ -1529,7 +1529,13 @@ function QuestionsTab({ token }) {
     const response = await fetch('/api/admin/questions', {
       headers: { Authorization: `Bearer ${token}` }
     })
-    setQuestions(await response.json())
+    const data = await response.json()
+    if (!response.ok) {
+      sonnerToast.error(data.error || 'Sorular yüklenemedi')
+      setQuestions([])
+      return
+    }
+    setQuestions(Array.isArray(data) ? data : [])
   }
 
   useEffect(() => {
@@ -1555,11 +1561,16 @@ function QuestionsTab({ token }) {
 
     const url = editItem ? `/api/admin/questions/${editItem.id}` : '/api/admin/questions'
     const method = editItem ? 'PUT' : 'POST'
-    await fetch(url, {
+    const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(formData)
     })
+    const payload = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      sonnerToast.error(payload.error || 'İşlem başarısız')
+      return
+    }
     sonnerToast.success(editItem ? 'Güncellendi' : 'Eklendi')
     setShowDialog(false)
     setEditItem(null)
@@ -1576,10 +1587,15 @@ function QuestionsTab({ token }) {
 
   const handleDelete = async (id) => {
     if (!confirm('Silmek istediğinizden emin misiniz?')) return
-    await fetch(`/api/admin/questions/${id}`, {
+    const res = await fetch(`/api/admin/questions/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     })
+    const payload = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      sonnerToast.error(payload.error || 'Silinemedi')
+      return
+    }
     sonnerToast.success('Silindi')
     loadQuestions()
   }
