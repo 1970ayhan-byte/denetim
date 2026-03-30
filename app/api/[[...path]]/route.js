@@ -1,6 +1,34 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { mongoCreateQuestion, mongoUpdateQuestion, mongoDeleteQuestion } from '@/lib/questionsMongo'
+import {
+  mongoCreateUser,
+  mongoUpdateUser,
+  mongoDeleteUser,
+  mongoCreateCategory,
+  mongoUpdateCategory,
+  mongoDeleteCategory,
+  mongoCreateQuestion,
+  mongoUpdateQuestion,
+  mongoDeleteQuestion,
+  mongoCreatePackage,
+  mongoUpdatePackage,
+  mongoDeletePackage,
+  mongoCreateCity,
+  mongoUpdateCity,
+  mongoDeleteCity,
+  mongoCreateMessage,
+  mongoUpdateMessage,
+  mongoCreateNews,
+  mongoUpdateNews,
+  mongoDeleteNews,
+  mongoCreatePayment,
+  mongoUpdatePayment,
+  mongoCreateInspection,
+  mongoUpdateInspection,
+  mongoCreateInspectionAnswer,
+  mongoUpdateInspectionAnswer,
+  mongoFindInspectionAnswerByInspectionAndQuestion,
+} from '@/lib/mongoWrites'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
@@ -51,14 +79,12 @@ async function handleRoute(request, { params }) {
     if (route === '/auth/register' && method === 'POST') {
       const { phone, password, name, role } = await request.json()
       
-      const exists = await prisma.user.findUnique({ where: { phone } })
-      if (exists) {
-        return handleCORS(NextResponse.json({ error: 'Bu telefon numarası zaten kayıtlı' }, { status: 400 }))
-      }
-      
       const hashedPassword = await hashPassword(password)
-      const user = await prisma.user.create({
-        data: { phone, password: hashedPassword, name, role: role || 'inspector' }
+      const user = await mongoCreateUser({
+        phone,
+        password: hashedPassword,
+        name,
+        role: role || 'inspector',
       })
       
       return handleCORS(NextResponse.json({ 
@@ -102,9 +128,7 @@ async function handleRoute(request, { params }) {
       }
       
       const { name, order } = await request.json()
-      const category = await prisma.category.create({
-        data: { name, order: order || 0 }
-      })
+      const category = await mongoCreateCategory({ name, order: order || 0 })
       return handleCORS(NextResponse.json(category))
     }
     
@@ -116,10 +140,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const { name, order } = await request.json()
-      const category = await prisma.category.update({
-        where: { id },
-        data: { name, order }
-      })
+      const category = await mongoUpdateCategory(id, { name, order })
       return handleCORS(NextResponse.json(category))
     }
     
@@ -130,7 +151,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await prisma.category.delete({ where: { id } })
+      await mongoDeleteCategory(id)
       return handleCORS(NextResponse.json({ message: 'Kategori silindi' }))
     }
     
@@ -159,7 +180,6 @@ async function handleRoute(request, { params }) {
       if (data.penaltyType === 'none') {
         data.penaltyType = ''
       }
-      // Native Mongo insert: Prisma writes require a replica set; standalone MongoDB rejects them.
       const question = await mongoCreateQuestion(data)
       return handleCORS(NextResponse.json(question))
     }
@@ -214,8 +234,11 @@ async function handleRoute(request, { params }) {
       
       const { phone, password, name } = await request.json()
       const hashedPassword = await hashPassword(password)
-      const user = await prisma.user.create({
-        data: { phone, password: hashedPassword, name, role: 'inspector' }
+      const user = await mongoCreateUser({
+        phone,
+        password: hashedPassword,
+        name,
+        role: 'inspector',
       })
       return handleCORS(NextResponse.json({ 
         id: user.id, phone: user.phone, name: user.name, role: user.role 
@@ -235,10 +258,7 @@ async function handleRoute(request, { params }) {
         data.password = await hashPassword(password)
       }
       
-      const user = await prisma.user.update({
-        where: { id },
-        data
-      })
+      const user = await mongoUpdateUser(id, data)
       return handleCORS(NextResponse.json({ 
         id: user.id, phone: user.phone, name: user.name, role: user.role 
       }))
@@ -251,7 +271,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await prisma.user.delete({ where: { id } })
+      await mongoDeleteUser(id)
       return handleCORS(NextResponse.json({ message: 'Personel silindi' }))
     }
     
@@ -271,11 +291,7 @@ async function handleRoute(request, { params }) {
       }
       
       const data = await request.json()
-      if (typeof data.features === 'object') {
-        data.features = JSON.stringify(data.features)
-      }
-      
-      const pkg = await prisma.package.create({ data })
+      const pkg = await mongoCreatePackage(data)
       return handleCORS(NextResponse.json(pkg))
     }
     
@@ -287,14 +303,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
-      if (typeof data.features === 'object') {
-        data.features = JSON.stringify(data.features)
-      }
-      
-      const pkg = await prisma.package.update({
-        where: { id },
-        data
-      })
+      const pkg = await mongoUpdatePackage(id, data)
       return handleCORS(NextResponse.json(pkg))
     }
     
@@ -305,7 +314,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await prisma.package.delete({ where: { id } })
+      await mongoDeletePackage(id)
       return handleCORS(NextResponse.json({ message: 'Paket silindi' }))
     }
     
@@ -325,7 +334,7 @@ async function handleRoute(request, { params }) {
       }
       
       const data = await request.json()
-      const city = await prisma.city.create({ data })
+      const city = await mongoCreateCity(data)
       return handleCORS(NextResponse.json(city))
     }
     
@@ -337,10 +346,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
-      const city = await prisma.city.update({
-        where: { id },
-        data
-      })
+      const city = await mongoUpdateCity(id, data)
       return handleCORS(NextResponse.json(city))
     }
     
@@ -351,7 +357,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await prisma.city.delete({ where: { id } })
+      await mongoDeleteCity(id)
       return handleCORS(NextResponse.json({ message: 'İl silindi' }))
     }
     
@@ -382,10 +388,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const { status, note } = await request.json()
-      const message = await prisma.message.update({
-        where: { id },
-        data: { status, note }
-      })
+      const message = await mongoUpdateMessage(id, { status, note })
       return handleCORS(NextResponse.json(message))
     }
     
@@ -435,10 +438,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[2]
       const { inspectorId } = await request.json()
-      const inspection = await prisma.inspection.update({
-        where: { id },
-        data: { inspectorId }
-      })
+      const inspection = await mongoUpdateInspection(id, { inspectorId })
       return handleCORS(NextResponse.json(inspection))
     }
     
@@ -470,7 +470,7 @@ async function handleRoute(request, { params }) {
         .replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ç/g, 'c')
         .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       
-      const news = await prisma.news.create({ data })
+      const news = await mongoCreateNews(data)
       return handleCORS(NextResponse.json(news))
     }
     
@@ -482,10 +482,7 @@ async function handleRoute(request, { params }) {
       
       const id = path[path.length - 1]
       const data = await request.json()
-      const news = await prisma.news.update({
-        where: { id },
-        data
-      })
+      const news = await mongoUpdateNews(id, data)
       return handleCORS(NextResponse.json(news))
     }
     
@@ -496,7 +493,7 @@ async function handleRoute(request, { params }) {
       }
       
       const id = path[path.length - 1]
-      await prisma.news.delete({ where: { id } })
+      await mongoDeleteNews(id)
       return handleCORS(NextResponse.json({ message: 'Haber silindi' }))
     }
     
@@ -552,7 +549,7 @@ async function handleRoute(request, { params }) {
     
     if (route === '/contact' && method === 'POST') {
       const data = await request.json()
-      const message = await prisma.message.create({ data })
+      const message = await mongoCreateMessage(data)
       
       // Mock: SMS bildirimi
       console.log('[MOCK SMS] Admin: Yeni form mesajı geldi')
@@ -569,49 +566,42 @@ async function handleRoute(request, { params }) {
       const data = await request.json()
       
       // Create payment record
-      const payment = await prisma.payment.create({
-        data: {
-          amount: data.amount,
-          packageId: data.packageId,
-          schoolName: data.schoolName,
-          cityId: data.cityId,
-          district: data.district || '',
-          contactName: data.contactName,
-          contactPhone: data.contactPhone,
-          contactEmail: data.contactEmail || '',
-          taxOffice: data.taxOffice || '',
-          taxNumber: data.taxNumber || '',
-          address: data.address || '',
-          status: 'pending'
-        }
+      const payment = await mongoCreatePayment({
+        amount: data.amount,
+        packageId: data.packageId,
+        schoolName: data.schoolName,
+        cityId: data.cityId,
+        district: data.district || '',
+        contactName: data.contactName,
+        contactPhone: data.contactPhone,
+        contactEmail: data.contactEmail || '',
+        taxOffice: data.taxOffice || '',
+        taxNumber: data.taxNumber || '',
+        address: data.address || '',
+        status: 'pending',
       })
       
       // Mock: ParamPOS entegrasyonu
       console.log('[MOCK PAYMENT] ParamPOS ödeme isteği:', payment.id)
       
       // Auto-complete for demo (gerçekte ParamPOS callback gelecek)
-      const completedPayment = await prisma.payment.update({
-        where: { id: payment.id },
-        data: { 
-          status: 'completed',
-          paidAt: new Date(),
-          transactionId: `MOCK-${uuidv4().substring(0, 8)}`
-        }
+      const completedPayment = await mongoUpdatePayment(payment.id, { 
+        status: 'completed',
+        paidAt: new Date(),
+        transactionId: `MOCK-${uuidv4().substring(0, 8)}`
       })
       
       // Create inspection
-      const inspection = await prisma.inspection.create({
-        data: {
-          schoolName: data.schoolName,
-          cityId: data.cityId,
-          district: data.district || '',
-          packageId: data.packageId,
-          paymentId: completedPayment.id,
-          schoolContact: data.contactName,
-          schoolPhone: data.contactPhone,
-          schoolEmail: data.contactEmail || '',
-          status: 'pending'
-        }
+      const inspection = await mongoCreateInspection({
+        schoolName: data.schoolName,
+        cityId: data.cityId,
+        district: data.district || '',
+        packageId: data.packageId,
+        paymentId: completedPayment.id,
+        schoolContact: data.contactName,
+        schoolPhone: data.contactPhone,
+        schoolEmail: data.contactEmail || '',
+        status: 'pending',
       })
       
       // Mock: SMS bildirimi
@@ -686,9 +676,9 @@ async function handleRoute(request, { params }) {
       
       // Only update status if it's pending
       if (inspection.status === 'pending') {
-        inspection = await prisma.inspection.update({
+        await mongoUpdateInspection(inspectionId, { status: 'in_progress' })
+        inspection = await prisma.inspection.findUnique({
           where: { id: inspectionId },
-          data: { status: 'in_progress' },
           include: { answers: true }
         })
       }
@@ -727,12 +717,9 @@ async function handleRoute(request, { params }) {
               foundUnanswered = true
               
               // Update inspection position
-              await prisma.inspection.update({
-                where: { id: inspectionId },
-                data: { 
-                  currentCategoryIndex: catIdx,
-                  currentQuestionIndex: qIdx
-                }
+              await mongoUpdateInspection(inspectionId, { 
+                currentCategoryIndex: catIdx,
+                currentQuestionIndex: qIdx
               })
             }
           }
@@ -799,40 +786,30 @@ async function handleRoute(request, { params }) {
       }
       
       // Check if answer exists
-      const existing = await prisma.inspectionAnswer.findFirst({
-        where: { inspectionId, questionId }
-      })
+      const existing = await mongoFindInspectionAnswerByInspectionAndQuestion(inspectionId, questionId)
       
       let answerRecord
       if (existing) {
-        answerRecord = await prisma.inspectionAnswer.update({
-          where: { id: existing.id },
-          data: { 
-            answer, 
-            note: note || '',
-            photos: photos ? JSON.stringify(photos) : ''
-          }
+        answerRecord = await mongoUpdateInspectionAnswer(existing.id, { 
+          answer, 
+          note: note || '',
+          photos: photos ? JSON.stringify(photos) : ''
         })
       } else {
-        answerRecord = await prisma.inspectionAnswer.create({
-          data: {
-            inspectionId,
-            questionId,
-            answer,
-            note: note || '',
-            photos: photos ? JSON.stringify(photos) : ''
-          }
+        answerRecord = await mongoCreateInspectionAnswer({
+          inspectionId,
+          questionId,
+          answer,
+          note: note || '',
+          photos: photos ? JSON.stringify(photos) : ''
         })
       }
       
       // Update inspection progress (currentQuestionIndex, currentCategoryIndex)
       if (currentCategoryIndex !== undefined && currentQuestionIndex !== undefined) {
-        await prisma.inspection.update({
-          where: { id: inspectionId },
-          data: { 
-            currentCategoryIndex,
-            currentQuestionIndex
-          }
+        await mongoUpdateInspection(inspectionId, { 
+          currentCategoryIndex,
+          currentQuestionIndex
         })
       }
       
@@ -880,12 +857,9 @@ async function handleRoute(request, { params }) {
       }
       
       const { inspectionId } = await request.json()
-      const inspection = await prisma.inspection.update({
-        where: { id: inspectionId },
-        data: { 
-          status: 'completed',
-          completedAt: new Date()
-        }
+      const inspection = await mongoUpdateInspection(inspectionId, { 
+        status: 'completed',
+        completedAt: new Date()
       })
       
       return handleCORS(NextResponse.json({ 
@@ -904,12 +878,9 @@ async function handleRoute(request, { params }) {
       
       const { inspectionId, currentCategoryIndex, currentQuestionIndex } = await request.json()
       
-      const inspection = await prisma.inspection.update({
-        where: { id: inspectionId },
-        data: { 
-          currentCategoryIndex,
-          currentQuestionIndex
-        }
+      const inspection = await mongoUpdateInspection(inspectionId, { 
+        currentCategoryIndex,
+        currentQuestionIndex
       })
       
       return handleCORS(NextResponse.json({ 
@@ -1124,10 +1095,7 @@ async function handleRoute(request, { params }) {
       const answerId = path[path.length - 1]
       const { note } = await request.json()
       
-      const answer = await prisma.inspectionAnswer.update({
-        where: { id: answerId },
-        data: { note }
-      })
+      const answer = await mongoUpdateInspectionAnswer(answerId, { note })
       
       return handleCORS(NextResponse.json(answer))
     }
