@@ -2094,14 +2094,18 @@ function PackagesTab({ token }) {
               />
             </div>
             <div>
-              <Label>Paket İçeriği</Label>
+              <Label>Paket İçeriği (denetim kapsamı)</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Her satır, &quot;Sorular&quot; sekmesindeki bir <strong>kategori adı</strong> ile birebir aynı olmalıdır.
+                Denetçi yalnızca burada yazan kategorilere ait soruları görür.
+              </p>
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <Input 
                     value={featureInput}
                     onChange={(e) => setFeatureInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
-                    placeholder="Özellik girin ve Enter'a basın"
+                    placeholder="Örn: MEB Evrak Kontrolü"
                   />
                   <Button type="button" onClick={addFeature}>
                     <Plus className="h-4 w-4" />
@@ -4144,7 +4148,6 @@ function InspectionFlow({
                 {[
                   { value: 'uygun', label: 'UYGUN', color: 'bg-green-50 border-green-500 text-green-900', icon: CheckCircle2 },
                   { value: 'uygun_degil', label: 'UYGUN DEĞİL', color: 'bg-red-50 border-red-500 text-red-900', icon: XCircle },
-                  { value: 'goreceli', label: 'GÖRECELİ', color: 'bg-yellow-50 border-yellow-500 text-yellow-900', icon: AlertCircle }
                 ].map(option => (
                   <button
                     key={option.value}
@@ -4515,10 +4518,13 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
                               <Badge className={
                                 savedAnswer.answer === 'uygun' ? 'bg-green-100 text-green-800' :
                                 savedAnswer.answer === 'uygun_degil' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
+                                savedAnswer.answer === 'goreceli' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-muted text-muted-foreground'
                               }>
                                 {savedAnswer.answer === 'uygun' ? 'UYGUN' :
-                                 savedAnswer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' : 'GÖRECELİ'}
+                                 savedAnswer.answer === 'uygun_degil' ? 'UYGUN DEĞİL' :
+                                 savedAnswer.answer === 'goreceli' ? 'GÖRECELİ' :
+                                 String(savedAnswer.answer || '—')}
                               </Badge>
                               {savedAnswer.note && (
                                 <span className="text-xs text-muted-foreground">📝 Not var</span>
@@ -4568,7 +4574,7 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
             </div>
             
             {/* Cevap Seçenekleri */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-2 gap-3 mb-6">
               <Button
                 variant={localAnswer === 'uygun' ? 'default' : 'outline'}
                 className={`h-14 ${localAnswer === 'uygun' ? 'bg-green-600 hover:bg-green-700' : ''}`}
@@ -4584,14 +4590,6 @@ function InspectionEditMode({ inspection, categories, answers, setAnswers, onCan
               >
                 <XCircle className="h-5 w-5 mr-2" />
                 UYGUN DEĞİL
-              </Button>
-              <Button
-                variant={localAnswer === 'goreceli' ? 'default' : 'outline'}
-                className={`h-14 ${localAnswer === 'goreceli' ? 'bg-yellow-600 hover:bg-yellow-700' : ''}`}
-                onClick={() => setLocalAnswer('goreceli')}
-              >
-                <AlertCircle className="h-5 w-5 mr-2" />
-                GÖRECELİ
               </Button>
             </div>
             

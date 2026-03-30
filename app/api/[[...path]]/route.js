@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import {
   mongoCreateUser,
   mongoUpdateUser,
@@ -41,6 +40,21 @@ import {
   mongoGetAdminInspectionPdf,
   mongoInspectionsSinceForStats,
   mongoListQuestionsWithCategory,
+  mongoGetPackageById,
+  filterCategoriesByPackageFeatures,
+  mongoFindUserByPhone,
+  mongoListStaffInspectors,
+  mongoListCategoriesWithQuestions,
+  mongoListPackagesAdmin,
+  mongoListPackagesPublicWithFeatures,
+  mongoListCitiesByNameAsc,
+  mongoListMessagesAdmin,
+  mongoListNewsAdmin,
+  mongoListNewsPublished,
+  mongoNewsBySlug,
+  mongoInspectionScalarsById,
+  mongoMessagesSince,
+  mongoPaymentsCompletedSince,
 } from '@/lib/mongoReads'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
@@ -71,7 +85,7 @@ async function handleRoute(request, { params }) {
     if (route === '/auth/login' && method === 'POST') {
       const { phone, password } = await request.json()
       
-      const user = await prisma.user.findUnique({ where: { phone } })
+      const user = await mongoFindUserByPhone(phone)
       if (!user) {
         return handleCORS(NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 401 }))
       }
@@ -109,7 +123,7 @@ async function handleRoute(request, { params }) {
     // Password Reset Request (Mock SMS)
     if (route === '/auth/reset-password' && method === 'POST') {
       const { phone } = await request.json()
-      const user = await prisma.user.findUnique({ where: { phone } })
+      const user = await mongoFindUserByPhone(phone)
       
       if (!user) {
         return handleCORS(NextResponse.json({ error: 'Kullanıcı bulunamadı' }, { status: 404 }))
@@ -127,10 +141,7 @@ async function handleRoute(request, { params }) {
     // ============ ADMIN - CATEGORIES ============
     
     if (route === '/admin/categories' && method === 'GET') {
-      const categories = await prisma.category.findMany({
-        orderBy: { order: 'asc' },
-        include: { questions: { orderBy: { order: 'asc' } } }
-      })
+      const categories = await mongoListCategoriesWithQuestions()
       return handleCORS(NextResponse.json(categories))
     }
     
@@ -226,10 +237,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const staff = await prisma.user.findMany({
-        where: { role: 'inspector' },
-        select: { id: true, phone: true, name: true, role: true, createdAt: true }
-      })
+      const staff = await mongoListStaffInspectors()
       return handleCORS(NextResponse.json(staff))
     }
     
@@ -285,9 +293,7 @@ async function handleRoute(request, { params }) {
     // ============ ADMIN - PACKAGES ============
     
     if (route === '/admin/packages' && method === 'GET') {
-      const packages = await prisma.package.findMany({
-        orderBy: { createdAt: 'desc' }
-      })
+      const packages = await mongoListPackagesAdmin()
       return handleCORS(NextResponse.json(packages))
     }
     
@@ -328,9 +334,7 @@ async function handleRoute(request, { params }) {
     // ============ ADMIN - CITIES ============
     
     if (route === '/admin/cities' && method === 'GET') {
-      const cities = await prisma.city.findMany({
-        orderBy: { name: 'asc' }
-      })
+      const cities = await mongoListCitiesByNameAsc()
       return handleCORS(NextResponse.json(cities))
     }
     
@@ -377,13 +381,7 @@ async function handleRoute(request, { params }) {
       }
       
       const { status } = Object.fromEntries(new URL(request.url).searchParams)
-      const where = status ? { status } : {}
-      
-      const messages = await prisma.message.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: 30
-      })
+      const messages = await mongoListMessagesAdmin(status || null, 30)
       return handleCORS(NextResponse.json(messages))
     }
     
@@ -444,10 +442,7 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const news = await prisma.news.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 200 // Limit for performance
-      })
+      const news = await mongoListNewsAdmin(200)
       return handleCORS(NextResponse.json(news))
     }
     
@@ -494,45 +489,27 @@ async function handleRoute(request, { params }) {
     // ============ PUBLIC - PACKAGES ============
     
     if (route === '/packages' && method === 'GET') {
-      const packages = await prisma.package.findMany({
-        where: { active: true },
-        orderBy: { price: 'asc' }
-      })
-      
-      // Parse features JSON
-      const packagesWithFeatures = packages.map(pkg => ({
-        ...pkg,
-        features: typeof pkg.features === 'string' ? JSON.parse(pkg.features || '[]') : pkg.features
-      }))
-      
+      const packagesWithFeatures = await mongoListPackagesPublicWithFeatures()
       return handleCORS(NextResponse.json(packagesWithFeatures))
     }
     
     // ============ PUBLIC - CITIES ============
     
     if (route === '/cities' && method === 'GET') {
-      const cities = await prisma.city.findMany({
-        orderBy: { name: 'asc' }
-      })
+      const cities = await mongoListCitiesByNameAsc()
       return handleCORS(NextResponse.json(cities))
     }
     
     // ============ PUBLIC - NEWS ============
     
     if (route === '/news' && method === 'GET') {
-      const news = await prisma.news.findMany({
-        where: { published: true },
-        orderBy: { createdAt: 'desc' },
-        take: 12
-      })
+      const news = await mongoListNewsPublished(12)
       return handleCORS(NextResponse.json(news))
     }
     
     if (route.startsWith('/news/') && method === 'GET') {
       const slug = path[path.length - 1]
-      const news = await prisma.news.findUnique({
-        where: { slug }
-      })
+      const news = await mongoNewsBySlug(slug)
       if (!news) {
         return handleCORS(NextResponse.json({ error: 'Haber bulunamadı' }, { status: 404 }))
       }
@@ -664,11 +641,22 @@ async function handleRoute(request, { params }) {
         }
       }
       
-      // Get all questions for inspection
-      const categories = await prisma.category.findMany({
-        orderBy: { order: 'asc' },
-        include: { questions: { orderBy: { order: 'asc' } } }
-      })
+      // Tüm kategoriler, sonra paket özellikleriyle (kategori adı eşleşmesi) filtrele
+      const allCategories = await mongoListCategoriesWithQuestions()
+      const packageDoc = inspection.packageId
+        ? await mongoGetPackageById(inspection.packageId)
+        : null
+      const categories = filterCategoriesByPackageFeatures(allCategories, packageDoc)
+
+      const clampIndices = (catIdx, qIdx) => {
+        const nCat = categories.length
+        if (nCat === 0) return { catIdx: 0, qIdx: 0 }
+        let c = Math.min(Math.max(0, catIdx), nCat - 1)
+        const nQ = categories[c]?.questions?.length ?? 0
+        const maxQ = Math.max(0, nQ - 1)
+        const q = Math.min(Math.max(0, qIdx), maxQ)
+        return { catIdx: c, qIdx: q }
+      }
       
       // Build answers map
       const answersMap = {}
@@ -680,9 +668,10 @@ async function handleRoute(request, { params }) {
         }
       })
       
-      // Find first unanswered question (for resume functionality)
-      let resumeCategoryIndex = inspection.currentCategoryIndex || 0
-      let resumeQuestionIndex = inspection.currentQuestionIndex || 0
+      let { catIdx: resumeCategoryIndex, qIdx: resumeQuestionIndex } = clampIndices(
+        inspection.currentCategoryIndex ?? 0,
+        inspection.currentQuestionIndex ?? 0
+      )
       
       if (findFirstUnanswered && inspection.status === 'in_progress') {
         let foundUnanswered = false
@@ -716,6 +705,18 @@ async function handleRoute(request, { params }) {
         }
       }
       
+      ;({
+        catIdx: resumeCategoryIndex,
+        qIdx: resumeQuestionIndex,
+      } = clampIndices(resumeCategoryIndex, resumeQuestionIndex))
+
+      const scopedQuestionIds = new Set()
+      for (const cat of categories) {
+        for (const q of cat.questions || []) scopedQuestionIds.add(q.id)
+      }
+      const totalQuestionsScoped = scopedQuestionIds.size
+      const totalAnsweredScoped = [...scopedQuestionIds].filter((id) => answersMap[id]).length
+      
       return handleCORS(NextResponse.json({ 
         inspection: {
           ...inspection,
@@ -727,8 +728,8 @@ async function handleRoute(request, { params }) {
         resumeInfo: {
           categoryIndex: resumeCategoryIndex,
           questionIndex: resumeQuestionIndex,
-          totalAnswered: Object.keys(answersMap).length,
-          totalQuestions: categories.reduce((sum, cat) => sum + (cat.questions?.length || 0), 0)
+          totalAnswered: totalAnsweredScoped,
+          totalQuestions: totalQuestionsScoped
         }
       }))
     }
@@ -744,9 +745,7 @@ async function handleRoute(request, { params }) {
       const { inspectionId, questionId, answer, note, photos, currentCategoryIndex, currentQuestionIndex } = await request.json()
       
       // Get inspection to check status and edit window
-      const inspection = await prisma.inspection.findUnique({
-        where: { id: inspectionId }
-      })
+      const inspection = await mongoInspectionScalarsById(inspectionId)
       
       if (!inspection) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
@@ -922,20 +921,13 @@ async function handleRoute(request, { params }) {
       }
       
       // Get messages count
-      const messages = await prisma.message.findMany({
-        where: { createdAt: { gte: startDate } }
-      })
+      const messages = await mongoMessagesSince(startDate)
       
       // Get inspections (no relation include — avoids Prisma errors on orphan packageId)
       const inspections = await mongoInspectionsSinceForStats(startDate)
       
       // Get payments
-      const payments = await prisma.payment.findMany({
-        where: { 
-          createdAt: { gte: startDate },
-          status: 'completed'
-        }
-      })
+      const payments = await mongoPaymentsCompletedSince(startDate)
       
       // Calculate totals
       const totalMessages = messages.length
@@ -1017,11 +1009,11 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
       }
       
-      // Get all categories with questions for summary
-      const categories = await prisma.category.findMany({
-        orderBy: { order: 'asc' },
-        include: { questions: { orderBy: { order: 'asc' } } }
-      })
+      const allCats = await mongoListCategoriesWithQuestions()
+      const pkgForReport = inspection.packageId
+        ? await mongoGetPackageById(inspection.packageId)
+        : null
+      const categories = filterCategoriesByPackageFeatures(allCats, pkgForReport)
       
       return handleCORS(NextResponse.json({
         inspection,
