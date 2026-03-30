@@ -3568,7 +3568,15 @@ function InspectorPanel({ token, user }) {
     return null
   }
 
-  const saveAnswer = async (questionId, answer, note = '', photos = [], catIndex = null, qIndex = null) => {
+  const saveAnswer = async (
+    questionId,
+    answer,
+    note = '',
+    photos = [],
+    catIndex = null,
+    qIndex = null,
+    removeSkipped = false
+  ) => {
     try {
       const response = await fetch('/api/inspector/inspection/answer', {
         method: 'POST',
@@ -3584,7 +3592,8 @@ function InspectorPanel({ token, user }) {
           photos,
           // Include position for autosave
           currentCategoryIndex: catIndex,
-          currentQuestionIndex: qIndex
+          currentQuestionIndex: qIndex,
+          removeSkipped,
         })
       })
       const data = await response.json().catch(() => ({}))
@@ -3598,12 +3607,14 @@ function InspectorPanel({ token, user }) {
         [questionId]: { answer, note, photos }
       })
 
-      setSelectedInspection((prev) => {
-        if (!prev) return prev
-        const sk = Array.isArray(prev.skippedQuestionIds) ? prev.skippedQuestionIds : []
-        if (!sk.includes(questionId)) return prev
-        return { ...prev, skippedQuestionIds: sk.filter((id) => id !== questionId) }
-      })
+      if (removeSkipped) {
+        setSelectedInspection((prev) => {
+          if (!prev) return prev
+          const sk = Array.isArray(prev.skippedQuestionIds) ? prev.skippedQuestionIds : []
+          if (!sk.includes(questionId)) return prev
+          return { ...prev, skippedQuestionIds: sk.filter((id) => id !== questionId) }
+        })
+      }
     } catch (error) {
       console.error('Save error:', error)
       sonnerToast.error('Kaydetme hatası')
@@ -3809,6 +3820,47 @@ function normalizeSkippedQuestionIds(raw) {
   return [...new Set(raw.filter(Boolean))]
 }
 
+function flattenInspectionQuestions(categories) {
+  const out = []
+  if (!Array.isArray(categories)) return out
+  categories.forEach((cat, ci) => {
+    (cat.questions || []).forEach((q, qi) => {
+      out.push({
+        catIdx: ci,
+        qIdx: qi,
+        id: q.id,
+        text: q.question,
+        categoryName: cat.name,
+      })
+    })
+  })
+  return out
+}
+
+function findNextUnansweredAfter(categories, answersMap, afterCatIdx, afterQIdx) {
+  const flat = flattenInspectionQuestions(categories)
+  const idx = flat.findIndex((r) => r.catIdx === afterCatIdx && r.qIdx === afterQIdx)
+  if (idx === -1) return null
+  for (let j = idx + 1; j < flat.length; j++) {
+    if (!answersMap[flat[j].id]) return { catIdx: flat[j].catIdx, qIdx: flat[j].qIdx }
+  }
+  for (let j = 0; j < idx; j++) {
+    if (!answersMap[flat[j].id]) return { catIdx: flat[j].catIdx, qIdx: flat[j].qIdx }
+  }
+  return null
+}
+
+function findNextUnansweredFromInclusive(categories, answersMap, fromCatIdx, fromQIdx) {
+  const flat = flattenInspectionQuestions(categories)
+  const idx = flat.findIndex((r) => r.catIdx === fromCatIdx && r.qIdx === fromQIdx)
+  if (idx === -1) return null
+  for (let step = 0; step < flat.length; step++) {
+    const j = (idx + step) % flat.length
+    if (!answersMap[flat[j].id]) return { catIdx: flat[j].catIdx, qIdx: flat[j].qIdx }
+  }
+  return null
+}
+
 // Inspection Flow Component
 function InspectionFlow({ 
   inspection, 
@@ -3836,7 +3888,8 @@ function InspectionFlow({
     normalizeSkippedQuestionIds(inspection.skippedQuestionIds)
   )
   const [skipSubmitting, setSkipSubmitting] = useState(false)
-  const [skippedSheetOpen, setSkippedSheetOpen] = useState(false)
+  const [soruListesiOpen, setSoruListesiOpen] = useState(false)
+  const [soruListesiTab, setSoruListesiTab] = useState('all')
 
   const currentCategory = categories[currentCategoryIndex] || categories[categories.length - 1]
   const categoryQuestions = currentCategory?.questions || []
@@ -3864,17 +3917,51 @@ function InspectionFlow({
     setSkippedIds(normalizeSkippedQuestionIds(inspection.skippedQuestionIds))
   }, [inspection.id, inspection.skippedQuestionIds])
 
-  const pendingSkippedList = useMemo(() => {
-    return skippedIds
-      .filter((id) => !answers[id])
-      .map((id) => {
-        for (const cat of categories) {
-          const q = (cat.questions || []).find((qq) => qq.id === id)
-          if (q) return { id, text: q.question, category: cat.name }
+  const skippedRowsAll = useMemo(() => {
+    return skippedIds.map((id) => {
+      let row = { id, text: 'Soru', category: '—' }
+      for (const cat of categories) {
+        const q = (cat.questions || []).find((qq) => qq.id === id)
+        if (q) {
+          row = { id, text: q.question, category: cat.name }
+          break
         }
-        return { id, text: 'Soru', category: '—' }
-      })
+      }
+      const ans = answers[id]
+      const hasAnswer = Boolean(ans?.answer)
+      let answerLabel = ''
+      if (ans?.answer === 'uygun') answerLabel = 'Uygun'
+      else if (ans?.answer === 'uygun_degil') answerLabel = 'Uygun değil'
+      return { ...row, hasAnswer, answerLabel }
+    })
   }, [skippedIds, answers, categories])
+
+  const skippedNeedingAnswerCount = useMemo(
+    () => skippedRowsAll.filter((r) => !r.hasAnswer).length,
+    [skippedRowsAll]
+  )
+
+  const skippedWithAnswerCount = useMemo(
+    () => skippedRowsAll.filter((r) => r.hasAnswer).length,
+    [skippedRowsAll]
+  )
+
+  const allQuestionsRows = useMemo(() => {
+    const skippedSet = new Set(skippedIds)
+    return flattenInspectionQuestions(categories).map((row) => {
+      const ans = answers[row.id]
+      const hasAnswer = Boolean(ans?.answer)
+      let answerLabel = ''
+      if (ans?.answer === 'uygun') answerLabel = 'Uygun'
+      else if (ans?.answer === 'uygun_degil') answerLabel = 'Uygun değil'
+      const isSkipped = skippedSet.has(row.id)
+      let status = 'Bekliyor'
+      if (hasAnswer && isSkipped) status = 'Cevaplı + Geçilenler'
+      else if (hasAnswer) status = 'Cevaplandı'
+      else if (isSkipped) status = 'Geçildi'
+      return { ...row, hasAnswer, answerLabel, isSkipped, status }
+    })
+  }, [categories, answers, skippedIds])
 
   // If all questions answered and we're at the end, show finish dialog
   useEffect(() => {
@@ -3965,49 +4052,50 @@ function InspectionFlow({
       return
     }
 
-    let nextCatIndex = currentCategoryIndex
-    let nextQIndex = currentQuestionIndex + 1
-
-    if (isLastQuestion) {
-      if (isLastCategory) {
-        // Son soru, son kategori - önce kaydet, sonra "Denetimi Bitir" dialogu göster
-        await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
-        setShowFinishDialog(true)
-        return
-      } else {
-        // Find next category with questions
-        nextCatIndex = currentCategoryIndex + 1
-        while (nextCatIndex < categories.length && (categories[nextCatIndex]?.questions?.length || 0) === 0) {
-          nextCatIndex++
-        }
-        
-        if (nextCatIndex >= categories.length) {
-          // No more categories with questions
-          await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
-          setShowFinishDialog(true)
-          return
-        }
-        
-        nextQIndex = 0
-      }
+    const mergedAnswers = {
+      ...answers,
+      [currentQuestion.id]: { answer: localAnswer, note: localNote, photos: localPhotos },
     }
 
-    // Save current answer with next position
-    await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, nextCatIndex, nextQIndex)
-    
-    // Navigate to next question
-    if (isLastQuestion && nextCatIndex !== currentCategoryIndex) {
-      setCurrentCategoryIndex(nextCatIndex)
-      setCurrentQuestionIndex(0)
-    } else {
-      setCurrentQuestionIndex(nextQIndex)
+    const nextPos = findNextUnansweredAfter(
+      categories,
+      mergedAnswers,
+      currentCategoryIndex,
+      currentQuestionIndex
+    )
+
+    if (!nextPos) {
+      await saveAnswer(
+        currentQuestion.id,
+        localAnswer,
+        localNote,
+        localPhotos,
+        currentCategoryIndex,
+        currentQuestionIndex,
+        true
+      )
+      setShowFinishDialog(true)
+      setLocalAnswer('')
+      setLocalNote('')
+      setLocalPhotos([])
+      sonnerToast.success('Cevap kaydedildi', { duration: 1500 })
+      return
     }
 
-    // Reset local state
+    await saveAnswer(
+      currentQuestion.id,
+      localAnswer,
+      localNote,
+      localPhotos,
+      nextPos.catIdx,
+      nextPos.qIdx,
+      true
+    )
+    setCurrentCategoryIndex(nextPos.catIdx)
+    setCurrentQuestionIndex(nextPos.qIdx)
     setLocalAnswer('')
     setLocalNote('')
     setLocalPhotos([])
-    
     sonnerToast.success('Cevap kaydedildi', { duration: 1500 })
   }
 
@@ -4061,14 +4149,26 @@ function InspectionFlow({
       setSkippedIds(nextSkipped)
       onSkippedIdsChange?.(nextSkipped)
 
+      const mergedAnswers = { ...answers }
+      if (localAnswer) {
+        mergedAnswers[qid] = { answer: localAnswer, note: localNote, photos: localPhotos }
+      }
+
       if (atEnd) {
         setShowFinishDialog(true)
       } else {
+        let landCat = currentCategoryIndex
+        let landQ = nextQIndex
         if (isLastQuestion && nextCatIndex !== currentCategoryIndex) {
-          setCurrentCategoryIndex(nextCatIndex)
-          setCurrentQuestionIndex(0)
+          landCat = nextCatIndex
+          landQ = 0
+        }
+        const pos = findNextUnansweredFromInclusive(categories, mergedAnswers, landCat, landQ)
+        if (pos) {
+          setCurrentCategoryIndex(pos.catIdx)
+          setCurrentQuestionIndex(pos.qIdx)
         } else {
-          setCurrentQuestionIndex(nextQIndex)
+          setShowFinishDialog(true)
         }
       }
 
@@ -4085,7 +4185,7 @@ function InspectionFlow({
     }
   }
 
-  const goToSkippedQuestion = async (questionId) => {
+  const goToQuestionById = async (questionId) => {
     for (let ci = 0; ci < categories.length; ci++) {
       const qs = categories[ci].questions || []
       for (let qi = 0; qi < qs.length; qi++) {
@@ -4093,7 +4193,7 @@ function InspectionFlow({
           await saveProgress(ci, qi)
           setCurrentCategoryIndex(ci)
           setCurrentQuestionIndex(qi)
-          setSkippedSheetOpen(false)
+          setSoruListesiOpen(false)
           return
         }
       }
@@ -4178,10 +4278,16 @@ function InspectionFlow({
               <p className="text-sm">Kurum: <span className="font-medium">{inspection.schoolName}</span></p>
               <p className="text-sm">Cevaplanan Soru: <span className="font-medium">{answeredCount} / {totalAllQuestions}</span></p>
             </div>
-            {pendingSkippedList.length > 0 && (
+            {skippedNeedingAnswerCount > 0 && (
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-sm text-amber-900">
-                <strong>{pendingSkippedList.length}</strong> geçilmiş soru henüz cevaplanmadı. Üst menüden Geçilenler
-                listesine girerek tamamlayabilirsiniz.
+                <strong>{skippedNeedingAnswerCount}</strong> geçilmiş sorunun cevabı yok. Üst menüden Soru listesi /
+                Geçilenler üzerinden tamamlayabilirsiniz.
+              </div>
+            )}
+            {skippedWithAnswerCount > 0 && (
+              <div className="bg-sky-50 border border-sky-200 p-3 rounded-lg text-sm text-sky-900">
+                <strong>{skippedWithAnswerCount}</strong> geçilmiş soruda cevap kaydı var; listeden düşmesi için o
+                soruda <strong>Sonraki soru</strong> ile ilerlemeniz gerekir.
               </div>
             )}
             <div className="flex gap-2 justify-end">
@@ -4229,14 +4335,28 @@ function InspectionFlow({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSkippedSheetOpen(true)}
+                onClick={() => {
+                  setSoruListesiTab('all')
+                  setSoruListesiOpen(true)
+                }}
+              >
+                <ClipboardList className="h-4 w-4 mr-1" />
+                Soru listesi
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSoruListesiTab('skipped')
+                  setSoruListesiOpen(true)
+                }}
                 className="text-amber-800 border-amber-300 hover:bg-amber-50"
               >
                 <ListOrdered className="h-4 w-4 mr-1" />
                 Geçilenler
-                {pendingSkippedList.length > 0 && (
+                {skippedNeedingAnswerCount > 0 && (
                   <Badge variant="secondary" className="ml-1.5 px-1.5 py-0 h-5 min-w-5 text-xs">
-                    {pendingSkippedList.length}
+                    {skippedNeedingAnswerCount}
                   </Badge>
                 )}
               </Button>
@@ -4406,7 +4526,15 @@ function InspectionFlow({
             <Button 
               onClick={async () => {
                 if (localAnswer) {
-                  await saveAnswer(currentQuestion.id, localAnswer, localNote, localPhotos, currentCategoryIndex, currentQuestionIndex)
+                  await saveAnswer(
+                    currentQuestion.id,
+                    localAnswer,
+                    localNote,
+                    localPhotos,
+                    currentCategoryIndex,
+                    currentQuestionIndex,
+                    true
+                  )
                 }
                 setShowFinishDialog(true)
               }}
@@ -4427,34 +4555,105 @@ function InspectionFlow({
         </div>
       </div>
 
-      <Sheet open={skippedSheetOpen} onOpenChange={setSkippedSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+      <Sheet open={soruListesiOpen} onOpenChange={setSoruListesiOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto flex flex-col">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <ListOrdered className="h-5 w-5" />
-              Geçilenler
+              <ClipboardList className="h-5 w-5" />
+              Soru listesi
             </SheetTitle>
             <SheetDescription>
-              Henüz cevaplamadığınız geçilmiş sorular burada listelenir. Bir soruya dokunarak o soruya gidebilirsiniz.
+              Tüm soruların durumunu görün; Geçilenler sekmesinde geçtiğiniz sorular (cevaplı olsa da) listelenir.
             </SheetDescription>
           </SheetHeader>
-          <div className="mt-6 space-y-2">
-            {pendingSkippedList.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Şu an geçilmiş ve cevapsız soru yok.</p>
-            ) : (
-              pendingSkippedList.map((row) => (
+          <Tabs value={soruListesiTab} onValueChange={setSoruListesiTab} className="mt-4 flex flex-col flex-1 min-h-0">
+            <TabsList className="grid w-full grid-cols-2 shrink-0">
+              <TabsTrigger value="all">Tüm sorular ({allQuestionsRows.length})</TabsTrigger>
+              <TabsTrigger value="skipped">Geçilenler ({skippedRowsAll.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="all" className="mt-4 flex-1 min-h-0 max-h-[70vh] overflow-y-auto pr-1 space-y-2">
+              {allQuestionsRows.map((row) => (
                 <button
                   key={row.id}
                   type="button"
-                  onClick={() => goToSkippedQuestion(row.id)}
-                  className="w-full text-left rounded-lg border p-3 hover:bg-muted/60 transition-colors"
+                  onClick={() => goToQuestionById(row.id)}
+                  className={`w-full text-left rounded-lg border p-3 hover:bg-muted/60 transition-colors ${
+                    row.id === currentQuestion?.id ? 'ring-2 ring-primary' : ''
+                  }`}
                 >
-                  <p className="text-xs text-muted-foreground">{row.category}</p>
+                  <div className="flex flex-wrap gap-1.5 mb-1">
+                    <Badge
+                      variant={
+                        row.hasAnswer && !row.isSkipped
+                          ? 'default'
+                          : row.isSkipped
+                            ? 'secondary'
+                            : 'outline'
+                      }
+                      className={
+                        row.isSkipped && !row.hasAnswer
+                          ? 'bg-amber-100 text-amber-950 border-amber-300'
+                          : row.hasAnswer && row.isSkipped
+                            ? 'bg-green-700'
+                            : ''
+                      }
+                    >
+                      {row.status}
+                    </Badge>
+                    {row.answerLabel ? (
+                      <Badge variant="outline" className="text-xs font-normal">
+                        {row.answerLabel}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{row.categoryName}</p>
                   <p className="text-sm font-medium line-clamp-3">{row.text}</p>
                 </button>
-              ))
-            )}
-          </div>
+              ))}
+            </TabsContent>
+            <TabsContent value="skipped" className="mt-4 flex-1 min-h-0 max-h-[70vh] overflow-y-auto pr-1 space-y-2">
+              {skippedRowsAll.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Henüz geçilmiş soru yok.</p>
+              ) : (
+                skippedRowsAll.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => goToQuestionById(row.id)}
+                    className={`w-full text-left rounded-lg border p-3 hover:bg-muted/60 transition-colors ${
+                      row.id === currentQuestion?.id ? 'ring-2 ring-primary' : ''
+                    }`}
+                  >
+                    <div className="flex flex-wrap gap-1.5 mb-1">
+                      <Badge
+                        variant="outline"
+                        className="border-amber-400 text-amber-950 bg-amber-50"
+                      >
+                        Geçildi
+                      </Badge>
+                      {row.hasAnswer ? (
+                        <Badge className="bg-green-600 hover:bg-green-600">Cevap kayıtlı</Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-600 text-amber-900 font-normal">
+                          Cevap yok
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{row.category}</p>
+                    <p className="text-sm font-medium line-clamp-3">{row.text}</p>
+                    {row.answerLabel ? (
+                      <p className="text-xs text-green-700 mt-1">Son seçim: {row.answerLabel}</p>
+                    ) : null}
+                    {row.hasAnswer ? (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Listeden kalkması için bu soruda Sonraki soru ile ilerleyin.
+                      </p>
+                    ) : null}
+                  </button>
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
         </SheetContent>
       </Sheet>
 
@@ -4488,14 +4687,22 @@ function InspectionFlow({
               </div>
             )}
 
-            {pendingSkippedList.length > 0 && (
+            {skippedNeedingAnswerCount > 0 && (
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
                 <p className="text-sm text-amber-900 flex items-center gap-2">
                   <ListOrdered className="h-4 w-4 shrink-0" />
                   <span>
-                    <strong>{pendingSkippedList.length}</strong> geçilmiş soru cevaplanmayı bekliyor. Geçilenler
-                    listesinden tamamlayabilirsiniz.
+                    <strong>{skippedNeedingAnswerCount}</strong> geçilmiş sorunun cevabı yok. Soru listesi / Geçilenler
+                    sekmesinden tamamlayabilirsiniz.
                   </span>
+                </p>
+              </div>
+            )}
+            {skippedWithAnswerCount > 0 && (
+              <div className="bg-sky-50 border border-sky-200 p-3 rounded-lg">
+                <p className="text-sm text-sky-900">
+                  <strong>{skippedWithAnswerCount}</strong> geçilmiş soruda cevap kaydı var; Geçilenler listesinden
+                  kalkmaları için ilgili soruda <strong>Sonraki soru</strong> ile ilerleyin.
                 </p>
               </div>
             )}

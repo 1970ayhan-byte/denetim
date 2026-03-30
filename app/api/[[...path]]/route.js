@@ -744,8 +744,16 @@ async function handleRoute(request, { params }) {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
       
-      const { inspectionId, questionId, answer, note, photos, currentCategoryIndex, currentQuestionIndex } =
-        await request.json()
+      const {
+        inspectionId,
+        questionId,
+        answer,
+        note,
+        photos,
+        currentCategoryIndex,
+        currentQuestionIndex,
+        removeSkipped,
+      } = await request.json()
       
       // Get inspection to check status and edit window
       const inspection = await mongoInspectionScalarsById(inspectionId)
@@ -796,7 +804,9 @@ async function handleRoute(request, { params }) {
         })
       }
 
-      await mongoRemoveSkippedQuestion(inspectionId, questionId).catch(() => {})
+      if (removeSkipped === true) {
+        await mongoRemoveSkippedQuestion(inspectionId, questionId).catch(() => {})
+      }
       
       return handleCORS(NextResponse.json(answerRecord))
     }
