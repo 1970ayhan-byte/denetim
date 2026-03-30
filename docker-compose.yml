@@ -1,26 +1,7 @@
-# Postgres + app. Değişkenler kökteki .env dosyasından (cp .env.example .env)
+# Uygulama konteyneri. Veritabanı: .env içindeki DATABASE_URL (harici PostgreSQL).
 # Coolify: ortam değişkenlerinde kapanmamış ${...} veya açıklama metni değer olarak kullanmayın
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: denetim-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-denetim}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-denetim}
-      POSTGRES_DB: ${POSTGRES_DB:-denetim}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-
   app:
     build:
       context: .
@@ -32,13 +13,7 @@ services:
       - "${APP_PORT:-3030}:3030"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-denetim}:${POSTGRES_PASSWORD:-denetim}@postgres:5432/${POSTGRES_DB:-denetim}
+      DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL}
       CORS_ORIGINS: ${CORS_ORIGINS}
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-volumes:
-  postgres_data:

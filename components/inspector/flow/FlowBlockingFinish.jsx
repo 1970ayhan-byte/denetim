@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { CheckCircle2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { FlowFinishSkippedHints } from './FlowFinishSkippedHints'
 
 export function FlowBlockingFinish({
@@ -11,6 +11,7 @@ export function FlowBlockingFinish({
   totalAllQuestions,
   skippedNeedingAnswerCount,
   skippedWithAnswerCount,
+  canCompleteInspection = true,
   onBack,
   onConfirmComplete,
 }) {
@@ -43,11 +44,24 @@ export function FlowBlockingFinish({
             skippedNeedingAnswerCount={skippedNeedingAnswerCount}
             skippedWithAnswerCount={skippedWithAnswerCount}
           />
+          {!canCompleteInspection && (
+            <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <p>
+                Geçilmiş soru kaydı varken tamamlama kapalıdır. Önce &quot;Geçilen&quot; soruları
+                cevaplayıp listeden çıkarın.
+              </p>
+            </div>
+          )}
           <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={onBack}>
               Geri Dön
             </Button>
-            <Button onClick={onConfirmComplete} className="bg-green-600 hover:bg-green-700">
+            <Button
+              disabled={!canCompleteInspection}
+              onClick={onConfirmComplete}
+              className="bg-green-600 hover:bg-green-700 disabled:opacity-50"
+            >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Denetimi Tamamla
             </Button>

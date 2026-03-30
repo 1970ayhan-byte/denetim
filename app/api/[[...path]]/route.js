@@ -60,8 +60,6 @@ import {
   messagesSince,
   paymentsCompletedSince,
 } from '@/lib/dbReads'
-import { exportFullDatabase } from '@/lib/databaseExport'
-import { importFullDatabase } from '@/lib/databaseImport'
 import { hashPassword, comparePassword, generateToken, getAuthUser } from '@/lib/auth'
 import sharp from 'sharp'
 import { v4 as uuidv4 } from 'uuid'
@@ -70,10 +68,7 @@ import { v4 as uuidv4 } from 'uuid'
 function handleCORS(response) {
   response.headers.set('Access-Control-Allow-Origin', '*')
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
-  response.headers.set(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, x-database-export-token',
-  )
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
 
@@ -441,66 +436,6 @@ async function handleRoute(request, { params }) {
       const { inspectorId } = await request.json()
       const inspection = await updateInspection(id, { inspectorId })
       return handleCORS(NextResponse.json(inspection))
-    }
-
-    // ============ ADMIN - FULL DATABASE EXPORT (JSON yedek) ============
-    // Üretimde DATABASE_EXPORT_TOKEN zorunlu; header: x-database-export-token
-    if (route === '/admin/database-export' && (method === 'GET' || method === 'POST')) {
-      const token = process.env.DATABASE_EXPORT_TOKEN
-      if (!token || !String(token).trim()) {
-        return handleCORS(
-          NextResponse.json(
-            { error: 'DATABASE_EXPORT_TOKEN sunucuda tanımlı değil' },
-            { status: 503 },
-          ),
-        )
-      }
-      const header = request.headers.get('x-database-export-token')
-      if (!header || header !== token) {
-        return handleCORS(NextResponse.json({ error: 'Yetkisiz' }, { status: 401 }))
-      }
-      try {
-        const payload = await exportFullDatabase()
-        return handleCORS(NextResponse.json(payload))
-      } catch (e) {
-        console.error('[admin/database-export]', e)
-        return handleCORS(
-          NextResponse.json(
-            { error: 'Export başarısız', detail: String(e?.message || e) },
-            { status: 500 },
-          ),
-        )
-      }
-    }
-
-    // ============ ADMIN - FULL DATABASE IMPORT (export JSON → DB, mevcut veriyi siler) ============
-    if (route === '/admin/database-import' && method === 'POST') {
-      const token = process.env.DATABASE_EXPORT_TOKEN
-      if (!token || !String(token).trim()) {
-        return handleCORS(
-          NextResponse.json(
-            { error: 'DATABASE_EXPORT_TOKEN sunucuda tanımlı değil' },
-            { status: 503 },
-          ),
-        )
-      }
-      const header = request.headers.get('x-database-export-token')
-      if (!header || header !== token) {
-        return handleCORS(NextResponse.json({ error: 'Yetkisiz' }, { status: 401 }))
-      }
-      try {
-        const body = await request.json()
-        const summary = await importFullDatabase(body)
-        return handleCORS(NextResponse.json({ ok: true, summary }))
-      } catch (e) {
-        console.error('[admin/database-import]', e)
-        return handleCORS(
-          NextResponse.json(
-            { error: 'İçe aktarma başarısız', detail: String(e?.message || e) },
-            { status: 500 },
-          ),
-        )
-      }
     }
 
     // ============ ADMIN - NEWS ============
@@ -966,17 +901,45 @@ async function handleRoute(request, { params }) {
       if (!authUser || authUser.role !== 'inspector') {
         return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
       }
-      
+
       const { inspectionId } = await request.json()
-      const inspection = await updateInspection(inspectionId, { 
+      if (!inspectionId) {
+        return handleCORS(NextResponse.json({ error: 'Eksik parametre' }, { status: 400 }))
+      }
+
+      const insp = await inspectionScalarsById(inspectionId)
+      if (!insp || insp.inspectorId !== authUser.id) {
+        return handleCORS(NextResponse.json({ error: 'Denetim bulunamadı' }, { status: 404 }))
+      }
+      if (insp.status === 'completed') {
+        return handleCORS(NextResponse.json({ error: 'Denetim zaten tamamlanmış' }, { status: 400 }))
+      }
+
+      const skipped = Array.isArray(insp.skippedQuestionIds) ? insp.skippedQuestionIds : []
+      if (skipped.length > 0) {
+        return handleCORS(
+          NextResponse.json(
+            {
+              error:
+                'Geçilmiş sorular varken denetim tamamlanamaz. Geçilenler listesinden tüm soruları cevaplayıp listeden çıkarın.',
+              skippedCount: skipped.length,
+            },
+            { status: 400 },
+          ),
+        )
+      }
+
+      const inspection = await updateInspection(inspectionId, {
         status: 'completed',
-        completedAt: new Date()
+        completedAt: new Date(),
       })
-      
-      return handleCORS(NextResponse.json({ 
-        message: 'Denetim tamamlandı',
-        inspection
-      }))
+
+      return handleCORS(
+        NextResponse.json({
+          message: 'Denetim tamamlandı',
+          inspection,
+        }),
+      )
     }
     
     // ============ INSPECTOR - SAVE PROGRESS (Ara Ver) ============

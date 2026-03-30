@@ -13,6 +13,7 @@ export function FlowFinishDialog({
   totalAllQuestions,
   skippedNeedingAnswerCount,
   skippedWithAnswerCount,
+  canCompleteInspection = true,
   onConfirmComplete,
 }) {
   return (
@@ -57,11 +58,25 @@ export function FlowFinishDialog({
             skippedWithAnswerCount={skippedWithAnswerCount}
           />
 
+          {!canCompleteInspection && (
+            <div className="flex gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              <p>
+                Geçilmiş soru kaydı varken tamamlama kapalıdır. Önce &quot;Geçilen&quot; soruları
+                cevaplayıp listeden çıkarın.
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => onOpenChange(false)} className="flex-1">
               Geri Dön
             </Button>
-            <Button onClick={onConfirmComplete} className="flex-1 bg-green-600 hover:bg-green-700">
+            <Button
+              disabled={!canCompleteInspection}
+              onClick={onConfirmComplete}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50"
+            >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Denetimi Tamamla
             </Button>

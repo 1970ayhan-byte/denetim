@@ -8,8 +8,7 @@
         "dev:webpack": "next dev --hostname 0.0.0.0 --port 3030",
         "build": "next build",
         "start": "next start --hostname 0.0.0.0 --port 3030",
-        "db:push": "prisma db push",
-        "db:import": "node --env-file=.env scripts/import-export.mjs"
+        "db:push": "prisma db push"
     },
     "dependencies": {
         "@fontsource/dejavu-sans": "^5.2.5",

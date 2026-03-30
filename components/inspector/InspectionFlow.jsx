@@ -412,9 +412,17 @@ export function InspectionFlow({
     setCurrentQuestionIndex(newQIndex)
   }
 
+  const canCompleteInspection = skippedIds.length === 0
+
   const handleFinishInspection = async () => {
-    await completeInspection()
-    setShowFinishDialog(false)
+    if (!canCompleteInspection) {
+      sonnerToast.error(
+        'Geçilmiş sorular varken denetim tamamlanamaz. Geçilenler listesinden tüm soruları tamamlayın.',
+      )
+      return
+    }
+    const ok = await completeInspection()
+    if (ok) setShowFinishDialog(false)
   }
 
   const handlePause = async () => {
@@ -450,6 +458,7 @@ export function InspectionFlow({
         totalAllQuestions={totalAllQuestions}
         skippedNeedingAnswerCount={skippedNeedingAnswerCount}
         skippedWithAnswerCount={skippedWithAnswerCount}
+        canCompleteInspection={canCompleteInspection}
         onBack={onCancel}
         onConfirmComplete={handleFinishInspection}
       />
@@ -536,7 +545,20 @@ export function InspectionFlow({
               </Button>
               {isLastQuestion && isLastCategory ? (
                 <Button
+                  type="button"
+                  disabled={!canCompleteInspection}
+                  title={
+                    !canCompleteInspection
+                      ? 'Geçilmiş sorular varken denetim tamamlanamaz'
+                      : undefined
+                  }
                   onClick={async () => {
+                    if (!canCompleteInspection) {
+                      sonnerToast.error(
+                        'Geçilmiş sorular varken denetim tamamlanamaz. Önce Geçilenler listesini bitirin.',
+                      )
+                      return
+                    }
                     if (localAnswer) {
                       await saveAnswer(
                         currentQuestion.id,
@@ -550,7 +572,7 @@ export function InspectionFlow({
                     }
                     setShowFinishDialog(true)
                   }}
-                  className="min-h-[48px] flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold touch-manipulation"
+                  className="min-h-[48px] flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-semibold touch-manipulation disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-5 w-5 mr-2" />
                   Denetimi bitir
@@ -586,6 +608,7 @@ export function InspectionFlow({
         totalAllQuestions={totalAllQuestions}
         skippedNeedingAnswerCount={skippedNeedingAnswerCount}
         skippedWithAnswerCount={skippedWithAnswerCount}
+        canCompleteInspection={canCompleteInspection}
         onConfirmComplete={handleFinishInspection}
       />
     </div>

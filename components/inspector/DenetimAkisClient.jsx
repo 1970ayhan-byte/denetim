@@ -167,10 +167,12 @@ export function DenetimAkisClient({ token }) {
   }
 
   const completeInspection = async () => {
-    if (!confirm('Denetimi tamamlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.')) return
+    if (!confirm('Denetimi tamamlamak istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+      return false
+    }
 
     try {
-      await fetch('/api/inspector/inspection/complete', {
+      const response = await fetch('/api/inspector/inspection/complete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,11 +180,17 @@ export function DenetimAkisClient({ token }) {
         },
         body: JSON.stringify({ inspectionId: selectedInspection.id }),
       })
-
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        sonnerToast.error(data.error || 'Denetim tamamlanamadı')
+        return false
+      }
       sonnerToast.success('Denetim tamamlandı!')
       router.push('/denetci')
+      return true
     } catch (error) {
       sonnerToast.error('Hata oluştu')
+      return false
     }
   }
 
