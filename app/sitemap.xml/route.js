@@ -7,10 +7,11 @@ export async function GET() {
   // Static pages
   const staticPages = [
     { url: '/', priority: '1.0', changefreq: 'weekly' },
-    { url: '/#hizmetler', priority: '0.9', changefreq: 'monthly' },
-    { url: '/#iletisim', priority: '0.8', changefreq: 'monthly' },
-    { url: '/#fiyatlar', priority: '0.8', changefreq: 'monthly' },
-    { url: '/#hakkimizda', priority: '0.7', changefreq: 'monthly' },
+    { url: '/hizmetler', priority: '0.9', changefreq: 'monthly' },
+    { url: '/paketler', priority: '0.9', changefreq: 'weekly' },
+    { url: '/haberler', priority: '0.85', changefreq: 'weekly' },
+    { url: '/iletisim', priority: '0.8', changefreq: 'monthly' },
+    { url: '/giris', priority: '0.3', changefreq: 'yearly' },
   ]
   
   const currentDate = new Date().toISOString().split('T')[0]
