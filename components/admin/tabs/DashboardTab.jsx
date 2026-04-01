@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -222,17 +223,22 @@ export function DashboardTab({ token }) {
       {/* Summary Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm">Gelen Mesajlar</p>
-                  <p className="text-4xl font-bold mt-2">{stats.totals.messages}</p>
+          <Link href="/admin/messages" className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2">
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white h-full transition-opacity hover:opacity-95 cursor-pointer">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Gelen Mesajlar</p>
+                    <p className="text-4xl font-bold mt-2">{stats.totals.messages}</p>
+                    <p className="text-blue-100/90 text-xs mt-3 max-w-[14rem] leading-snug">
+                      Web sitesi İletişim formundan gelen talepler Mesajlar sayfasında listelenir. Tıklayın →
+                    </p>
+                  </div>
+                  <MessageSquare className="h-12 w-12 opacity-50 shrink-0" />
                 </div>
-                <MessageSquare className="h-12 w-12 opacity-50" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
           
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
             <CardContent className="p-6">

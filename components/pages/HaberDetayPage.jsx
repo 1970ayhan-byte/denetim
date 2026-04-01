@@ -83,12 +83,6 @@ export function HaberDetayPage({ slug }) {
             </div>
           </div>
         )}
-
-        <div className="mt-12 text-center">
-          <Button size="lg" asChild>
-            <Link href="/iletisim">Bilgi Almak İstiyorum</Link>
-          </Button>
-        </div>
       </div>
     </div>
   )

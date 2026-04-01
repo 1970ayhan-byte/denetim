@@ -6,11 +6,50 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   FileCheck,
   Building2,
-  BookOpen,
   Shield,
-  AlertCircle,
-  CheckCircle2,
+  Users,
+  BookOpen,
+  ClipboardList,
+  MonitorCog,
 } from 'lucide-react'
+
+const DENETIM_ALANLARI = [
+  {
+    icon: FileCheck,
+    title: 'Kuruluşa Ait Temel Bilgiler',
+    desc: 'Kuruluş Evraklarının Kontrolü',
+  },
+  {
+    icon: Building2,
+    title: 'Bina Fiziksel Özellikleri',
+    desc: 'Fiziki şartlar ve Gereklilikler Kontrolü',
+  },
+  {
+    icon: Shield,
+    title: 'Sağlık ve Güvenlik Önlemleri',
+    desc: 'Hijyen, İlaçlama, Yangın, Deprem Kontrolü',
+  },
+  {
+    icon: Users,
+    title: 'Personel İşleri',
+    desc: 'Mebbis, Çalışan Evrakları, SGK, Servis Kontrolü',
+  },
+  {
+    icon: BookOpen,
+    title: 'Öğrenci İşleri',
+    desc: 'E-Okul, Kayıt, Ücret ve Fatura Kontrolü',
+  },
+  {
+    icon: ClipboardList,
+    title: 'Okul Öncesi Program İçerikleri',
+    desc: 'Toplantı Tutanakları, Planlar, Komisyonlar, Çizelgeler Kontrolü',
+  },
+  {
+    icon: MonitorCog,
+    title: 'İç Denetim ve Bilişim Sistemleri',
+    desc: 'Kontroller, Uygunluklar, Zamanlama Kontrolü',
+  },
+]
 
 export function HizmetlerPage() {
   return (
@@ -27,23 +66,16 @@ export function HizmetlerPage() {
 
         <h2 className="text-2xl font-bold mb-6 text-center">Denetlenen Alanlar</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          {[
-            { icon: FileCheck, title: 'MEB Evrakları', desc: 'Tüm resmi evrakların kontrolü' },
-            { icon: Building2, title: 'MEBBİS Kontrolü', desc: 'Sistem kayıtlarının doğruluğu' },
-            { icon: BookOpen, title: 'e-Okul Kontrolü', desc: 'Öğrenci İşleri ve Personel Kullanıcı Tanımlamaları' },
-            { icon: Shield, title: 'Fiziki Şartlar', desc: 'Bina ve donanım uygunluğu' },
-            { icon: AlertCircle, title: 'Yangın Yönetmeliği', desc: 'Yangın Önlem Uygunlukları' },
-            { icon: CheckCircle2, title: 'Tarım ve Sağlık', desc: 'Gıda İşletme Uygunluk Denetimi' },
-          ].map((item, i) => (
+          {DENETIM_ALANLARI.map((item, i) => (
             <Card key={i} className="text-center hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex justify-center mb-2">
                   <item.icon className="h-12 w-12 text-primary" />
                 </div>
-                <CardTitle>{item.title}</CardTitle>
+                <CardTitle className="text-lg leading-snug">{item.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">{item.desc}</p>
+                <p className="text-muted-foreground text-sm">{item.desc}</p>
               </CardContent>
             </Card>
           ))}

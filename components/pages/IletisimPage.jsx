@@ -128,6 +128,9 @@ export function IletisimPage() {
                     Gönder
                   </Button>
                 </form>
+                <p className="text-sm text-muted-foreground mt-4 border-t pt-4">
+                  Formu gönderdiğinizde talebiniz bize ulaşır; ekibimiz en kısa sürede sizinle iletişime geçer.
+                </p>
               </CardContent>
             </Card>
           </div>

@@ -98,6 +98,9 @@ export function MessagesTab({ token }) {
 
   return (
     <div>
+      <p className="text-sm text-muted-foreground mb-4 max-w-3xl">
+        Web sitesi İletişim formundan gelen talepler burada listelenir.
+      </p>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Mesajlar ({messages.length})</h2>
         <Select value={filterStatus} onValueChange={setFilterStatus}>

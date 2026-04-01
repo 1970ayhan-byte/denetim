@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import sharp from 'sharp'
 import {
   createCategory,
   updateCategory,
@@ -399,7 +400,32 @@ export async function handleAdminRoutes(ctx) {
     const news = await createNews(data)
     return handleCORS(NextResponse.json(news))
   }
-  
+
+  if (route === '/admin/news/upload-image' && method === 'POST') {
+    const authUser = getAuthUser(request)
+    if (!authUser || authUser.role !== 'admin') {
+      return handleCORS(NextResponse.json({ error: 'Yetkisiz erişim' }, { status: 403 }))
+    }
+
+    const formData = await request.formData()
+    const file = formData.get('image') || formData.get('photo')
+
+    if (!file || typeof file === 'string') {
+      return handleCORS(NextResponse.json({ error: 'Dosya bulunamadı' }, { status: 400 }))
+    }
+
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+
+    const optimized = await sharp(buffer)
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toBuffer()
+
+    const dataUrl = `data:image/jpeg;base64,${optimized.toString('base64')}`
+    return handleCORS(NextResponse.json({ url: dataUrl }))
+  }
+
   if (route.startsWith('/admin/news/') && method === 'PUT') {
     const authUser = getAuthUser(request)
     if (!authUser || authUser.role !== 'admin') {

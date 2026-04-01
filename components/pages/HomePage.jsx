@@ -76,37 +76,28 @@ export function HomePage() {
           <h2 className="text-4xl font-bold text-center mb-12">Neden Sarımeşe Danışmanlık?</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="hover:shadow-xl transition-shadow text-center">
-              <CardHeader>
+              <CardHeader className="pb-6">
                 <div className="flex justify-center mb-4">
                   <Shield className="h-16 w-16 text-primary" />
                 </div>
                 <CardTitle className="text-xl">Mevzuata Uygun</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">MEB, Yangın ve Tarım yönetmeliklerine tam uyum</p>
-              </CardContent>
             </Card>
             <Card className="hover:shadow-xl transition-shadow text-center">
-              <CardHeader>
+              <CardHeader className="pb-6">
                 <div className="flex justify-center mb-4">
                   <FileCheck className="h-16 w-16 text-primary" />
                 </div>
                 <CardTitle className="text-xl">Eksiksiz Denetim</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Evrak, fiziki şartlar ve finans kontrolü</p>
-              </CardContent>
             </Card>
             <Card className="hover:shadow-xl transition-shadow text-center">
-              <CardHeader>
+              <CardHeader className="pb-6">
                 <div className="flex justify-center mb-4">
                   <BookOpen className="h-16 w-16 text-primary" />
                 </div>
                 <CardTitle className="text-xl">Detaylı Raporlama</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Eksiklikler ve çözüm önerileri ile kapsamlı rapor</p>
-              </CardContent>
             </Card>
           </div>
         </div>

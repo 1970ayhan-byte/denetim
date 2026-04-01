@@ -46,6 +46,7 @@ export function NewsManagementTab({ token }) {
   const [news, setNews] = useState([])
   const [showDialog, setShowDialog] = useState(false)
   const [editItem, setEditItem] = useState(null)
+  const [imageUploading, setImageUploading] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -105,6 +106,38 @@ export function NewsManagementTab({ token }) {
       published: item.published
     })
     setShowDialog(true)
+  }
+
+  const handleImageFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !file.type.startsWith('image/')) {
+      sonnerToast.error('Lütfen bir görsel dosyası seçin')
+      return
+    }
+    setImageUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('image', file)
+      const res = await fetch('/api/admin/news/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        sonnerToast.error(data.error || 'Yükleme başarısız')
+        return
+      }
+      if (data.url) {
+        setFormData((prev) => ({ ...prev, imageUrl: data.url }))
+        sonnerToast.success('Görsel yüklendi')
+      }
+    } catch {
+      sonnerToast.error('Yükleme hatası')
+    } finally {
+      setImageUploading(false)
+    }
   }
 
   return (
@@ -173,13 +206,53 @@ export function NewsManagementTab({ token }) {
                 placeholder="Haber içeriği..."
               />
             </div>
-            <div>
-              <Label>Görsel URL</Label>
-              <Input 
-                value={formData.imageUrl} 
-                onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
-                placeholder="https://example.com/image.jpg"
-              />
+            <div className="space-y-2">
+              <Label>Haber görseli</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  className="max-w-xs cursor-pointer"
+                  disabled={imageUploading}
+                  onChange={handleImageFile}
+                />
+                {imageUploading && (
+                  <span className="text-sm text-muted-foreground">Yükleniyor…</span>
+                )}
+              </div>
+              {formData.imageUrl ? (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs text-muted-foreground">Önizleme</p>
+                  <img
+                    src={formData.imageUrl}
+                    alt=""
+                    className="max-h-40 rounded-md border object-contain"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, imageUrl: '' })}
+                  >
+                    Görseli kaldır
+                  </Button>
+                </div>
+              ) : null}
+              <div className="pt-2">
+                <Label className="text-muted-foreground">İsteğe bağlı: harici görsel URL</Label>
+                {formData.imageUrl?.startsWith('data:') ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Yerel yüklenen görsel kayıtlı. URL kullanmak için önce &quot;Görseli kaldır&quot; deyin.
+                  </p>
+                ) : (
+                  <Input
+                    value={formData.imageUrl}
+                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                    placeholder="https://..."
+                    className="mt-1"
+                  />
+                )}
+              </div>
             </div>
             <div>
               <Label>SEO Anahtar Kelimeleri</Label>
